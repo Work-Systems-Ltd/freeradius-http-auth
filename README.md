@@ -62,7 +62,9 @@ sequenceDiagram
     FR-->>UI: Accounting-Response
 ```
 
-## Failover: auth-svc unavailable
+## Failover
+
+### auth-svc unavailable
 
 ```mermaid
 sequenceDiagram
@@ -81,7 +83,7 @@ sequenceDiagram
     FR-->>UI: Access-Accept (no reply attributes)
 ```
 
-## Failover: acct-svc unavailable
+### acct-svc unavailable
 
 Post-auth and accounting both target acct-svc. If it is unreachable, both silently succeed and FreeRADIUS logs the request to stdout (running with `-X`). Authentication results are unaffected.
 
