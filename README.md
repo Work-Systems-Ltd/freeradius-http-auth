@@ -1,6 +1,8 @@
 # freeradius-http-auth
 
-FreeRADIUS 3.x test environment using `rlm_rest` to delegate authentication and accounting to HTTP microservices. Intended for development and testing of RADIUS logic without a real BNG.
+FreeRADIUS 3.x test environment using `rlm_rest` to delegate authentication and accounting to HTTP microservices. Intended for development and testing of RADIUS logic without a real BNG. Comes with basic ui for generating radius packets for testing
+
+![radclient-ui](radclient-ui/app/static/radclient-ui.png)
 
 ## Architecture
 
