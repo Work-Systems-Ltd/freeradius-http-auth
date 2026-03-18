@@ -62,6 +62,39 @@ sequenceDiagram
     FR-->>UI: Accounting-Response
 ```
 
+## Failover: auth-svc unavailable
+
+```mermaid
+sequenceDiagram
+    participant UI as radclient-ui
+    participant FR as FreeRADIUS
+    participant AS as auth-svc (down)
+    participant AC as acct-svc
+
+    UI->>FR: Access-Request (UDP 1812)
+    FR-xAS: POST /authorize
+    Note over FR: rest returns fail
+    Note over FR: Set Auth-Type := Accept (fail open)
+
+    FR->>AC: POST /post-auth
+    AC-->>FR: 200
+    FR-->>UI: Access-Accept (no reply attributes)
+```
+
+## Failover: acct-svc unavailable
+
+```mermaid
+sequenceDiagram
+    participant UI as radclient-ui
+    participant FR as FreeRADIUS
+    participant AC as acct-svc (down)
+
+    UI->>FR: Accounting-Request (UDP 1813)
+    FR-xAC: POST /accounting
+    Note over FR: rest returns fail, silently accept
+    FR-->>UI: Accounting-Response
+```
+
 ## Quick start
 
 ```
