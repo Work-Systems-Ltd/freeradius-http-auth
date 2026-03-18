@@ -4,8 +4,8 @@ import re
 import socket
 import subprocess
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -25,17 +25,10 @@ def _resolve_radius_host() -> str:
 
 
 def _run_radclient(port: int, packet_type: str, attr_input: str) -> tuple[str, dict]:
-    """Run radclient and return (raw_output, parsed_result)."""
     try:
         radius_ip = _resolve_radius_host()
         result = subprocess.run(
-            [
-                "radclient",
-                "-x",
-                f"{radius_ip}:{port}",
-                packet_type,
-                RADIUS_SECRET,
-            ],
+            ["radclient", "-x", f"{radius_ip}:{port}", packet_type, RADIUS_SECRET],
             input=attr_input,
             capture_output=True,
             text=True,
@@ -58,15 +51,15 @@ async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.post("/send", response_class=HTMLResponse)
-async def send_auth(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    auth_type: str = Form("PAP"),
-    nas_ip: str = Form("127.0.0.1"),
-    nas_port: str = Form("0"),
-) -> HTMLResponse:
+@app.post("/api/auth")
+async def api_auth(request: Request) -> JSONResponse:
+    body = await request.json()
+    username = body.get("username", "")
+    password = body.get("password", "")
+    auth_type = body.get("auth_type", "PAP")
+    nas_ip = body.get("nas_ip", "127.0.0.1")
+    nas_port = body.get("nas_port", "0")
+
     logger.info("Sending %s auth request for user=%s", auth_type, username)
 
     attrs = [
@@ -82,35 +75,22 @@ async def send_auth(
         attrs.append(f'User-Password = "{password}"')
 
     output, parsed = _run_radclient(1812, "auth", "\n".join(attrs))
-
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "output": output,
-            "parsed": parsed,
-            "username": username,
-            "password": password,
-            "auth_type": auth_type,
-            "nas_ip": nas_ip,
-            "nas_port": nas_port,
-        },
-    )
+    return JSONResponse({"raw": output, **parsed})
 
 
-@app.post("/send-acct", response_class=HTMLResponse)
-async def send_acct(
-    request: Request,
-    username: str = Form(...),
-    acct_status_type: str = Form("Start"),
-    acct_session_id: str = Form(""),
-    nas_ip: str = Form("127.0.0.1"),
-    nas_port: str = Form("0"),
-    framed_ip: str = Form(""),
-    acct_session_time: str = Form("0"),
-    acct_input_octets: str = Form("0"),
-    acct_output_octets: str = Form("0"),
-) -> HTMLResponse:
+@app.post("/api/acct")
+async def api_acct(request: Request) -> JSONResponse:
+    body = await request.json()
+    username = body.get("username", "")
+    acct_status_type = body.get("acct_status_type", "Start")
+    acct_session_id = body.get("acct_session_id", "")
+    nas_ip = body.get("nas_ip", "127.0.0.1")
+    nas_port = body.get("nas_port", "0")
+    framed_ip = body.get("framed_ip", "")
+    acct_session_time = body.get("acct_session_time", "0")
+    acct_input_octets = body.get("acct_input_octets", "0")
+    acct_output_octets = body.get("acct_output_octets", "0")
+
     logger.info("Sending accounting %s for user=%s", acct_status_type, username)
 
     attrs = [
@@ -132,44 +112,35 @@ async def send_acct(
         attrs.append(f'Acct-Output-Octets = {acct_output_octets}')
 
     output, parsed = _run_radclient(1813, "acct", "\n".join(attrs))
-
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "acct_output": output,
-            "acct_parsed": parsed,
-            "acct_username": username,
-            "acct_status_type": acct_status_type,
-            "acct_session_id": acct_session_id,
-            "nas_ip": nas_ip,
-            "nas_port": nas_port,
-            "framed_ip": framed_ip,
-            "acct_session_time": acct_session_time,
-            "acct_input_octets": acct_input_octets,
-            "acct_output_octets": acct_output_octets,
-        },
-    )
+    return JSONResponse({"raw": output, **parsed})
 
 
 def _parse_radclient_output(output: str) -> dict:
-    """Parse radclient -x output to extract result and attributes."""
     result = "Unknown"
     attributes: dict[str, str] = {}
 
-    if "Access-Accept" in output:
-        result = "Access-Accept"
-    elif "Access-Reject" in output:
+    if re.search(r"Received Access-Reject", output):
         result = "Access-Reject"
-    elif "Accounting-Response" in output:
+    elif re.search(r"Received Access-Accept", output):
+        result = "Access-Accept"
+    elif re.search(r"Received Accounting-Response", output):
         result = "Accounting-Response"
     elif "no response" in output.lower():
         result = "No Response"
 
-    for match in re.finditer(r"^\s+(\S[\w-]+)\s+=\s+(.+)$", output, re.MULTILINE):
-        attr_name = match.group(1)
-        attr_value = match.group(2).strip()
-        if attr_name not in ("User-Name", "User-Password", "NAS-IP-Address", "NAS-Port"):
-            attributes[attr_name] = attr_value
+    received = False
+    for line in output.splitlines():
+        if "Received" in line:
+            received = True
+            continue
+        if received and line.startswith("Sent"):
+            break
+        if received:
+            match = re.match(r"^\s+(\S[\w-]+)\s+=\s+(.+)$", line)
+            if match:
+                attr_name = match.group(1)
+                attr_value = match.group(2).strip()
+                if attr_name != "Message-Authenticator":
+                    attributes[attr_name] = attr_value
 
     return {"result": result, "attributes": attributes}

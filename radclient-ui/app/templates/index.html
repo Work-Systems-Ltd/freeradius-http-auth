@@ -7,6 +7,9 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/theme/material-darker.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         :root {
@@ -29,19 +32,17 @@
             background: var(--bg);
             color: var(--secondary);
             -webkit-font-smoothing: antialiased;
+            height: 100vh;
+            overflow: hidden;
         }
 
         /* Header */
         header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 0 40px;
             height: 72px;
-            background: var(--bg);
         }
 
         header img { height: 24px; width: auto; display: block; opacity: 0.9; }
@@ -62,44 +63,34 @@
         nav button:hover { color: var(--primary); }
         nav button.active { color: var(--primary); }
 
-        /* Main */
-        main {
-            max-width: 720px;
-            margin: 0 auto;
-            padding: 100px 40px 160px;
+        /* Two-column layout */
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: calc(100vh - 72px);
         }
 
-        h1 {
-            font-size: clamp(56px, 8vw, 96px);
-            font-weight: 400;
-            letter-spacing: -0.05em;
-            line-height: 1;
-            color: var(--primary);
-            margin-bottom: 16px;
+        .col {
+            padding: 48px 48px 48px;
+            overflow-y: auto;
         }
 
-        h1 span {
-            background: linear-gradient(135deg, #4ade80, #22c55e, #16a34a);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .col-left {
+            border-right: 1px solid rgba(255,255,255,0.04);
         }
 
-        .subtitle {
-            font-size: 17px;
+        /* Section label */
+        .label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
             color: var(--muted);
-            margin-bottom: 96px;
+            margin-bottom: 32px;
         }
 
         /* Form fields */
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
-        .full { grid-column: 1 / -1; }
-
-        .field {
-            padding: 24px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            position: relative;
-        }
+        .field { padding: 20px 0; border-bottom: 1px solid rgba(255,255,255,0.04); position: relative; }
 
         .field::after {
             content: '';
@@ -118,10 +109,10 @@
             display: block;
             font-size: 11px;
             font-weight: 500;
-            letter-spacing: 0.14em;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--muted);
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .field input,
@@ -130,7 +121,7 @@
             background: none;
             border: none;
             padding: 0;
-            font-size: 20px;
+            font-size: 18px;
             font-family: var(--font);
             color: var(--primary);
             outline: none;
@@ -149,24 +140,27 @@
         .field select option { background: #18181b; color: var(--primary); }
         .field input::placeholder { color: rgba(255,255,255,0.15); }
 
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+
         /* Button */
         .submit {
-            margin-top: 56px;
+            margin-top: 40px;
             display: inline-flex;
             align-items: center;
             gap: 14px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 400;
             font-family: var(--font);
             color: var(--bg);
             background: var(--primary);
-            padding: 20px 40px;
+            padding: 18px 36px;
             border: none;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: background 0.2s, opacity 0.2s;
         }
 
         .submit:hover { background: var(--green); }
+        .submit:disabled { opacity: 0.4; cursor: wait; }
 
         .submit svg {
             width: 14px;
@@ -176,97 +170,112 @@
 
         .submit:hover svg { transform: translate(3px, -3px); }
 
-        /* Results */
-        .result {
-            margin-top: 96px;
-        }
-
+        /* Result */
         .result-status {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 48px;
+            gap: 12px;
+            margin-bottom: 40px;
         }
 
         .result-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
+            flex-shrink: 0;
         }
 
         .result-text {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 400;
             letter-spacing: -0.03em;
         }
 
-        .accept .result-dot { background: var(--green); }
-        .accept .result-text { color: var(--green); }
-        .reject .result-dot { background: var(--red); }
-        .reject .result-text { color: var(--red); }
-        .unknown .result-dot { background: var(--muted); }
-        .unknown .result-text { color: var(--muted); }
-
         /* Attributes */
-        .attrs { margin-bottom: 48px; }
-
         .attr-row {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            padding: 16px 0;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
         }
 
         .attr-name {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--muted);
         }
 
         .attr-value {
-            font-size: 15px;
+            font-size: 14px;
             font-family: var(--mono);
             color: var(--primary);
             text-align: right;
         }
 
-        /* Raw */
-        .raw-toggle {
-            font-size: 13px;
-            color: var(--muted);
-            cursor: pointer;
-            background: none;
-            border: none;
-            font-family: var(--font);
-            padding: 0;
-            transition: color 0.2s;
+        /* CodeMirror */
+        .cm-wrap {
+            margin-top: 40px;
         }
 
-        .raw-toggle:hover { color: var(--primary); }
+        .cm-wrap .label { margin-bottom: 12px; }
 
-        pre {
-            margin-top: 16px;
-            background: var(--surface);
-            padding: 24px;
-            font-size: 13px;
-            font-family: var(--mono);
-            color: var(--secondary);
-            line-height: 1.8;
-            white-space: pre-wrap;
-            overflow-x: auto;
+        .CodeMirror {
+            background: transparent !important;
+            color: var(--secondary) !important;
+            font-family: var(--mono) !important;
+            font-size: 12px !important;
+            line-height: 1.9 !important;
+            height: auto !important;
+            padding: 0 !important;
+        }
+
+        .CodeMirror-gutters {
+            background: transparent !important;
+            border-right: none !important;
+        }
+
+        .CodeMirror-linenumber {
+            color: rgba(255,255,255,0.1) !important;
+            padding: 0 16px 0 0 !important;
+            min-width: 24px !important;
+        }
+
+        .CodeMirror-cursor { display: none !important; }
+        .CodeMirror-selected { background: rgba(34,197,94,0.12) !important; }
+        .CodeMirror-scroll { overflow: hidden !important; }
+
+        /* Empty state */
+        .empty {
+            color: var(--muted);
+            font-size: 15px;
+            padding-top: 48px;
+        }
+
+        /* Spinner */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
         }
 
         /* Responsive */
-        @media (max-width: 640px) {
+        @media (max-width: 900px) {
+            body { overflow: auto; }
+            .layout { grid-template-columns: 1fr; height: auto; }
+            .col-left { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.04); }
+            .col { padding: 32px 20px; }
             header { padding: 0 20px; }
-            main { padding: 64px 20px 100px; }
-            .grid { grid-template-columns: 1fr; gap: 0; }
-            .full { grid-column: auto; }
-            h1 { font-size: 48px; }
-            .subtitle { margin-bottom: 64px; }
+            .grid { grid-template-columns: 1fr; }
         }
+
+        [x-cloak] { display: none !important; }
     </style>
 </head>
-<body x-data="{ tab: '{{ 'acct' if acct_output or acct_parsed else 'auth' }}' }">
+<body x-data="radclient()">
 
     <header>
         <a href="/"><img src="/static/logo-w.png" alt="Work Systems"></a>
@@ -276,152 +285,220 @@
         </nav>
     </header>
 
-    <main>
-        <h1>RadClient<span>.</span></h1>
-        <p class="subtitle">Send RADIUS requests to FreeRADIUS.</p>
+    <div class="layout">
 
-        <!-- Authentication -->
-        <div x-show="tab === 'auth'" x-cloak>
-            <form method="post" action="/send">
+        <!-- Left: Form -->
+        <div class="col col-left">
+
+            <!-- Auth form -->
+            <div x-show="tab === 'auth'" x-cloak>
+                <div class="label">Access-Request</div>
                 <div class="grid">
                     <div class="field">
                         <label>Username</label>
-                        <input type="text" name="username" value="{{ username or 'subscriber1' }}" required>
+                        <input type="text" x-model="auth.username">
                     </div>
                     <div class="field">
                         <label>Password</label>
-                        <input type="text" name="password" value="{{ password or 'secret123' }}" required>
+                        <input type="text" x-model="auth.password">
                     </div>
                     <div class="field">
                         <label>Auth Type</label>
-                        <select name="auth_type">
-                            <option value="PAP" {{ 'selected' if auth_type == 'PAP' or not auth_type else '' }}>PAP</option>
-                            <option value="CHAP" {{ 'selected' if auth_type == 'CHAP' else '' }}>CHAP</option>
+                        <select x-model="auth.auth_type">
+                            <option value="PAP">PAP</option>
+                            <option value="CHAP">CHAP</option>
                         </select>
                     </div>
                     <div class="field">
                         <label>NAS-IP-Address</label>
-                        <input type="text" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
-                    </div>
-                    <div class="field full">
-                        <label>NAS-Port</label>
-                        <input type="text" name="nas_port" value="{{ nas_port or '0' }}">
+                        <input type="text" x-model="auth.nas_ip">
                     </div>
                 </div>
-                <button type="submit" class="submit">
-                    Send Access-Request
-                    <svg viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
+                <div class="field">
+                    <label>NAS-Port</label>
+                    <input type="text" x-model="auth.nas_port">
+                </div>
+                <button class="submit" @click="sendAuth()" :disabled="loading">
+                    <template x-if="loading"><span class="spinner"></span></template>
+                    <template x-if="!loading">
+                        <span>Send</span>
+                    </template>
+                    <svg x-show="!loading" viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
                 </button>
-            </form>
-        </div>
+            </div>
 
-        <!-- Accounting -->
-        <div x-show="tab === 'acct'" x-cloak>
-            <form method="post" action="/send-acct">
+            <!-- Acct form -->
+            <div x-show="tab === 'acct'" x-cloak>
+                <div class="label">Accounting-Request</div>
                 <div class="grid">
                     <div class="field">
                         <label>Username</label>
-                        <input type="text" name="username" value="{{ acct_username or 'subscriber1' }}" required>
+                        <input type="text" x-model="acct.username">
                     </div>
                     <div class="field">
                         <label>Status Type</label>
-                        <select name="acct_status_type">
-                            <option value="Start" {{ 'selected' if acct_status_type == 'Start' or not acct_status_type else '' }}>Start</option>
-                            <option value="Stop" {{ 'selected' if acct_status_type == 'Stop' else '' }}>Stop</option>
-                            <option value="Interim-Update" {{ 'selected' if acct_status_type == 'Interim-Update' else '' }}>Interim-Update</option>
+                        <select x-model="acct.acct_status_type">
+                            <option value="Start">Start</option>
+                            <option value="Stop">Stop</option>
+                            <option value="Interim-Update">Interim-Update</option>
                         </select>
                     </div>
                     <div class="field">
                         <label>Session ID</label>
-                        <input type="text" name="acct_session_id" value="{{ acct_session_id or 'sess-001' }}">
+                        <input type="text" x-model="acct.acct_session_id">
                     </div>
                     <div class="field">
                         <label>NAS-IP-Address</label>
-                        <input type="text" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
+                        <input type="text" x-model="acct.nas_ip">
                     </div>
                     <div class="field">
                         <label>NAS-Port</label>
-                        <input type="text" name="nas_port" value="{{ nas_port or '0' }}">
+                        <input type="text" x-model="acct.nas_port">
                     </div>
                     <div class="field">
                         <label>Framed-IP-Address</label>
-                        <input type="text" name="framed_ip" value="{{ framed_ip or '' }}" placeholder="10.0.0.2">
+                        <input type="text" x-model="acct.framed_ip" placeholder="10.0.0.2">
                     </div>
                     <div class="field">
                         <label>Session Time (s)</label>
-                        <input type="text" name="acct_session_time" value="{{ acct_session_time or '0' }}">
+                        <input type="text" x-model="acct.acct_session_time">
                     </div>
                     <div class="field">
                         <label>Input Octets</label>
-                        <input type="text" name="acct_input_octets" value="{{ acct_input_octets or '0' }}">
-                    </div>
-                    <div class="field full">
-                        <label>Output Octets</label>
-                        <input type="text" name="acct_output_octets" value="{{ acct_output_octets or '0' }}">
+                        <input type="text" x-model="acct.acct_input_octets">
                     </div>
                 </div>
-                <button type="submit" class="submit">
-                    Send Accounting-Request
-                    <svg viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
+                <div class="field">
+                    <label>Output Octets</label>
+                    <input type="text" x-model="acct.acct_output_octets">
+                </div>
+                <button class="submit" @click="sendAcct()" :disabled="loading">
+                    <template x-if="loading"><span class="spinner"></span></template>
+                    <template x-if="!loading">
+                        <span>Send</span>
+                    </template>
+                    <svg x-show="!loading" viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
                 </button>
-            </form>
-        </div>
-
-        {% if parsed %}
-        <div class="result">
-            <div class="result-status {{ 'accept' if parsed.result == 'Access-Accept' else 'reject' if parsed.result == 'Access-Reject' else 'unknown' }}">
-                <span class="result-dot"></span>
-                <span class="result-text">{{ parsed.result }}</span>
             </div>
 
-            {% if parsed.attributes %}
-            <div class="attrs">
-                {% for attr, value in parsed.attributes.items() %}
-                <div class="attr-row">
-                    <span class="attr-name">{{ attr }}</span>
-                    <span class="attr-value">{{ value }}</span>
+        </div>
+
+        <!-- Right: Result -->
+        <div class="col">
+
+            <template x-if="!response">
+                <p class="empty">Response will appear here.</p>
+            </template>
+
+            <template x-if="response">
+                <div>
+                    <div class="result-status">
+                        <span class="result-dot" :style="{
+                            background: response.result.includes('Accept') || response.result.includes('Response')
+                                ? 'var(--green)'
+                                : response.result.includes('Reject')
+                                    ? 'var(--red)'
+                                    : 'var(--muted)'
+                        }"></span>
+                        <span class="result-text" :style="{
+                            color: response.result.includes('Accept') || response.result.includes('Response')
+                                ? 'var(--green)'
+                                : response.result.includes('Reject')
+                                    ? 'var(--red)'
+                                    : 'var(--muted)'
+                        }" x-text="response.result"></span>
+                    </div>
+
+                    <template x-if="Object.keys(response.attributes).length > 0">
+                        <div>
+                            <template x-for="[name, value] in Object.entries(response.attributes)" :key="name">
+                                <div class="attr-row">
+                                    <span class="attr-name" x-text="name"></span>
+                                    <span class="attr-value" x-text="value"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <div class="cm-wrap">
+                        <div class="label">Raw output</div>
+                        <div x-ref="cmContainer"></div>
+                    </div>
                 </div>
-                {% endfor %}
-            </div>
-            {% endif %}
+            </template>
+
         </div>
-        {% endif %}
+    </div>
 
-        {% if acct_parsed %}
-        <div class="result">
-            <div class="result-status {{ 'accept' if acct_parsed.result == 'Accounting-Response' else 'unknown' }}">
-                <span class="result-dot"></span>
-                <span class="result-text">{{ acct_parsed.result }}</span>
-            </div>
+    <script>
+    function radclient() {
+        return {
+            tab: 'auth',
+            loading: false,
+            response: null,
+            editor: null,
 
-            {% if acct_parsed.attributes %}
-            <div class="attrs">
-                {% for attr, value in acct_parsed.attributes.items() %}
-                <div class="attr-row">
-                    <span class="attr-name">{{ attr }}</span>
-                    <span class="attr-value">{{ value }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
+            auth: {
+                username: 'subscriber1',
+                password: 'secret123',
+                auth_type: 'PAP',
+                nas_ip: '127.0.0.1',
+                nas_port: '0'
+            },
 
-        {% if output or acct_output %}
-        <div x-data="{ open: false }">
-            <button class="raw-toggle" @click="open = !open" x-text="open ? 'Hide raw output' : 'Show raw output'"></button>
-            <div x-show="open" x-collapse>
-                {% if output %}
-                <pre>{{ output }}</pre>
-                {% endif %}
-                {% if acct_output %}
-                <pre>{{ acct_output }}</pre>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-    </main>
+            acct: {
+                username: 'subscriber1',
+                acct_status_type: 'Start',
+                acct_session_id: 'sess-001',
+                nas_ip: '127.0.0.1',
+                nas_port: '0',
+                framed_ip: '',
+                acct_session_time: '0',
+                acct_input_octets: '0',
+                acct_output_octets: '0'
+            },
 
-    <style>[x-cloak] { display: none !important; }</style>
+            async sendAuth() {
+                await this.send('/api/auth', this.auth);
+            },
+
+            async sendAcct() {
+                await this.send('/api/acct', this.acct);
+            },
+
+            async send(url, data) {
+                this.loading = true;
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    this.response = await res.json();
+                    this.$nextTick(() => this.renderEditor());
+                } catch (e) {
+                    this.response = { result: 'Error', attributes: {}, raw: e.message };
+                    this.$nextTick(() => this.renderEditor());
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            renderEditor() {
+                const container = this.$refs.cmContainer;
+                if (!container) return;
+                container.innerHTML = '';
+                this.editor = CodeMirror(container, {
+                    value: this.response.raw || '',
+                    readOnly: true,
+                    theme: 'material-darker',
+                    lineNumbers: true,
+                    lineWrapping: true,
+                    cursorBlinkRate: -1
+                });
+            }
+        };
+    }
+    </script>
 </body>
 </html>
