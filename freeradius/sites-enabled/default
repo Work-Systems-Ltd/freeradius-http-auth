@@ -18,8 +18,8 @@ server default {
                 Auth-Type := rest
             }
         }
-        else {
-            # auth-svc unreachable — fail open, accept all
+        elsif (fail) {
+            # auth-svc unreachable — fail open
             ok
             update control {
                 Auth-Type := Accept
@@ -31,6 +31,7 @@ server default {
         Auth-Type rest {
             rest
             if (fail) {
+                # auth-svc unreachable — accept
                 ok
             }
         }
