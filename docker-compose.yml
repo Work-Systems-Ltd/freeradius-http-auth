@@ -50,7 +50,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./radclient-ui/app:/app/app:ro
+      - ./radclient-ui/app:/app/app
     environment:
       - RADIUS_HOST=freeradius
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}

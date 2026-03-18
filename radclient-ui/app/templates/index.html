@@ -3,211 +3,425 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RadClient Web UI</title>
+    <title>RadClient — Work Systems</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
+        :root {
+            --bg: #09090b;
+            --primary: #fafafa;
+            --secondary: #a1a1aa;
+            --muted: #71717a;
+            --surface: rgba(255, 255, 255, 0.03);
+            --green: #22c55e;
+            --red: #ef4444;
+            --font: "DM Sans", system-ui, sans-serif;
+            --mono: "SF Mono", "Fira Code", ui-monospace, monospace;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 2rem; }
-        h1 { color: #00d4ff; margin-bottom: 1.5rem; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .tabs { display: flex; gap: 0; margin-bottom: 0; }
-        .tab { padding: 0.7rem 1.5rem; background: #0f3460; color: #a0c4ff; border: 1px solid #333; border-bottom: none; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 1rem; font-weight: bold; }
-        .tab.active { background: #16213e; color: #00d4ff; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        form { background: #16213e; padding: 1.5rem; border-radius: 0 8px 8px 8px; margin-bottom: 1.5rem; border: 1px solid #333; border-top: none; }
-        label { display: block; margin-bottom: 0.3rem; color: #a0c4ff; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #333; border-radius: 4px; background: #0f3460; color: #e0e0e0; font-size: 1rem; }
-        .row { display: flex; gap: 1rem; }
-        .row > div { flex: 1; }
-        button { background: #00d4ff; color: #1a1a2e; border: none; padding: 0.7rem 2rem; font-size: 1rem; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #00b8d4; }
-        .btn-acct { background: #ff9800; }
-        .btn-acct:hover { background: #f57c00; }
-        .result-box { background: #16213e; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; }
-        .result-accept { border-left: 4px solid #4caf50; }
-        .result-reject { border-left: 4px solid #f44336; }
-        .result-acct { border-left: 4px solid #ff9800; }
-        .result-unknown { border-left: 4px solid #ff9800; }
-        .result-label { font-size: 1.2rem; font-weight: bold; margin-bottom: 1rem; }
-        .accept { color: #4caf50; }
-        .reject { color: #f44336; }
-        .acct-resp { color: #ff9800; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { text-align: left; padding: 0.4rem 0.8rem; border-bottom: 1px solid #333; }
-        th { color: #a0c4ff; }
-        pre { background: #0f3460; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; margin-top: 1rem; }
-        h2 { color: #a0c4ff; margin-bottom: 0.5rem; font-size: 1rem; }
+        ::selection { background: var(--primary); color: var(--bg); }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--secondary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            height: 72px;
+            background: var(--bg);
+        }
+
+        header img { height: 24px; width: auto; display: block; opacity: 0.9; }
+
+        nav { display: flex; gap: 4px; }
+
+        nav button {
+            padding: 8px 16px;
+            font-size: 14px;
+            color: var(--muted);
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: var(--font);
+            transition: color 0.2s;
+        }
+
+        nav button:hover { color: var(--primary); }
+        nav button.active { color: var(--primary); }
+
+        /* Main */
+        main {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 100px 40px 160px;
+        }
+
+        h1 {
+            font-size: clamp(56px, 8vw, 96px);
+            font-weight: 400;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, #4ade80, #22c55e, #16a34a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 17px;
+            color: var(--muted);
+            margin-bottom: 96px;
+        }
+
+        /* Form fields */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
+        .full { grid-column: 1 / -1; }
+
+        .field {
+            padding: 24px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+        }
+
+        .field::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--green);
+            transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .field:focus-within::after { width: 100%; }
+
+        .field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 20px;
+            font-family: var(--font);
+            color: var(--primary);
+            outline: none;
+            letter-spacing: -0.01em;
+        }
+
+        .field select {
+            appearance: none;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2371717a' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right center;
+            padding-right: 24px;
+        }
+
+        .field select option { background: #18181b; color: var(--primary); }
+        .field input::placeholder { color: rgba(255,255,255,0.15); }
+
+        /* Button */
+        .submit {
+            margin-top: 56px;
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 16px;
+            font-weight: 400;
+            font-family: var(--font);
+            color: var(--bg);
+            background: var(--primary);
+            padding: 20px 40px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .submit:hover { background: var(--green); }
+
+        .submit svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .submit:hover svg { transform: translate(3px, -3px); }
+
+        /* Results */
+        .result {
+            margin-top: 96px;
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 48px;
+        }
+
+        .result-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .result-text {
+            font-size: 28px;
+            font-weight: 400;
+            letter-spacing: -0.03em;
+        }
+
+        .accept .result-dot { background: var(--green); }
+        .accept .result-text { color: var(--green); }
+        .reject .result-dot { background: var(--red); }
+        .reject .result-text { color: var(--red); }
+        .unknown .result-dot { background: var(--muted); }
+        .unknown .result-text { color: var(--muted); }
+
+        /* Attributes */
+        .attrs { margin-bottom: 48px; }
+
+        .attr-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 16px 0;
+        }
+
+        .attr-name {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .attr-value {
+            font-size: 15px;
+            font-family: var(--mono);
+            color: var(--primary);
+            text-align: right;
+        }
+
+        /* Raw */
+        .raw-toggle {
+            font-size: 13px;
+            color: var(--muted);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: var(--font);
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .raw-toggle:hover { color: var(--primary); }
+
+        pre {
+            margin-top: 16px;
+            background: var(--surface);
+            padding: 24px;
+            font-size: 13px;
+            font-family: var(--mono);
+            color: var(--secondary);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            header { padding: 0 20px; }
+            main { padding: 64px 20px 100px; }
+            .grid { grid-template-columns: 1fr; gap: 0; }
+            .full { grid-column: auto; }
+            h1 { font-size: 48px; }
+            .subtitle { margin-bottom: 64px; }
+        }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>RadClient Web UI</h1>
+<body x-data="{ tab: '{{ 'acct' if acct_output or acct_parsed else 'auth' }}' }">
 
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('auth')">Authentication</div>
-            <div class="tab" onclick="switchTab('acct')">Accounting</div>
-        </div>
+    <header>
+        <a href="/"><img src="/static/logo-w.png" alt="Work Systems"></a>
+        <nav>
+            <button :class="{ active: tab === 'auth' }" @click="tab = 'auth'">Authentication</button>
+            <button :class="{ active: tab === 'acct' }" @click="tab = 'acct'">Accounting</button>
+        </nav>
+    </header>
 
-        <!-- Authentication Tab -->
-        <div id="tab-auth" class="tab-content active">
+    <main>
+        <h1>RadClient<span>.</span></h1>
+        <p class="subtitle">Send RADIUS requests to FreeRADIUS.</p>
+
+        <!-- Authentication -->
+        <div x-show="tab === 'auth'" x-cloak>
             <form method="post" action="/send">
-                <div class="row">
-                    <div>
-                        <label for="username">Username</label>
-                        <input type="text" id="username" name="username" value="{{ username or 'subscriber1' }}" required>
+                <div class="grid">
+                    <div class="field">
+                        <label>Username</label>
+                        <input type="text" name="username" value="{{ username or 'subscriber1' }}" required>
                     </div>
-                    <div>
-                        <label for="password">Password</label>
-                        <input type="text" id="password" name="password" value="{{ password or 'secret123' }}" required>
+                    <div class="field">
+                        <label>Password</label>
+                        <input type="text" name="password" value="{{ password or 'secret123' }}" required>
                     </div>
-                </div>
-                <div class="row">
-                    <div>
-                        <label for="auth_type">Auth Type</label>
-                        <select id="auth_type" name="auth_type">
+                    <div class="field">
+                        <label>Auth Type</label>
+                        <select name="auth_type">
                             <option value="PAP" {{ 'selected' if auth_type == 'PAP' or not auth_type else '' }}>PAP</option>
                             <option value="CHAP" {{ 'selected' if auth_type == 'CHAP' else '' }}>CHAP</option>
                         </select>
                     </div>
-                    <div>
-                        <label for="auth_nas_ip">NAS-IP-Address</label>
-                        <input type="text" id="auth_nas_ip" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
+                    <div class="field">
+                        <label>NAS-IP-Address</label>
+                        <input type="text" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
                     </div>
-                    <div>
-                        <label for="auth_nas_port">NAS-Port</label>
-                        <input type="text" id="auth_nas_port" name="nas_port" value="{{ nas_port or '0' }}">
+                    <div class="field full">
+                        <label>NAS-Port</label>
+                        <input type="text" name="nas_port" value="{{ nas_port or '0' }}">
                     </div>
                 </div>
-                <button type="submit">Send Access-Request</button>
+                <button type="submit" class="submit">
+                    Send Access-Request
+                    <svg viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
             </form>
         </div>
 
-        <!-- Accounting Tab -->
-        <div id="tab-acct" class="tab-content">
+        <!-- Accounting -->
+        <div x-show="tab === 'acct'" x-cloak>
             <form method="post" action="/send-acct">
-                <div class="row">
-                    <div>
-                        <label for="acct_username">Username</label>
-                        <input type="text" id="acct_username" name="username" value="{{ acct_username or 'subscriber1' }}" required>
+                <div class="grid">
+                    <div class="field">
+                        <label>Username</label>
+                        <input type="text" name="username" value="{{ acct_username or 'subscriber1' }}" required>
                     </div>
-                    <div>
-                        <label for="acct_status_type">Acct-Status-Type</label>
-                        <select id="acct_status_type" name="acct_status_type">
+                    <div class="field">
+                        <label>Status Type</label>
+                        <select name="acct_status_type">
                             <option value="Start" {{ 'selected' if acct_status_type == 'Start' or not acct_status_type else '' }}>Start</option>
                             <option value="Stop" {{ 'selected' if acct_status_type == 'Stop' else '' }}>Stop</option>
                             <option value="Interim-Update" {{ 'selected' if acct_status_type == 'Interim-Update' else '' }}>Interim-Update</option>
                         </select>
                     </div>
-                    <div>
-                        <label for="acct_session_id">Acct-Session-Id</label>
-                        <input type="text" id="acct_session_id" name="acct_session_id" value="{{ acct_session_id or 'sess-001' }}">
+                    <div class="field">
+                        <label>Session ID</label>
+                        <input type="text" name="acct_session_id" value="{{ acct_session_id or 'sess-001' }}">
+                    </div>
+                    <div class="field">
+                        <label>NAS-IP-Address</label>
+                        <input type="text" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
+                    </div>
+                    <div class="field">
+                        <label>NAS-Port</label>
+                        <input type="text" name="nas_port" value="{{ nas_port or '0' }}">
+                    </div>
+                    <div class="field">
+                        <label>Framed-IP-Address</label>
+                        <input type="text" name="framed_ip" value="{{ framed_ip or '' }}" placeholder="10.0.0.2">
+                    </div>
+                    <div class="field">
+                        <label>Session Time (s)</label>
+                        <input type="text" name="acct_session_time" value="{{ acct_session_time or '0' }}">
+                    </div>
+                    <div class="field">
+                        <label>Input Octets</label>
+                        <input type="text" name="acct_input_octets" value="{{ acct_input_octets or '0' }}">
+                    </div>
+                    <div class="field full">
+                        <label>Output Octets</label>
+                        <input type="text" name="acct_output_octets" value="{{ acct_output_octets or '0' }}">
                     </div>
                 </div>
-                <div class="row">
-                    <div>
-                        <label for="acct_nas_ip">NAS-IP-Address</label>
-                        <input type="text" id="acct_nas_ip" name="nas_ip" value="{{ nas_ip or '127.0.0.1' }}">
-                    </div>
-                    <div>
-                        <label for="acct_nas_port">NAS-Port</label>
-                        <input type="text" id="acct_nas_port" name="nas_port" value="{{ nas_port or '0' }}">
-                    </div>
-                    <div>
-                        <label for="framed_ip">Framed-IP-Address</label>
-                        <input type="text" id="framed_ip" name="framed_ip" value="{{ framed_ip or '' }}" placeholder="10.0.0.2">
-                    </div>
-                </div>
-                <div class="row">
-                    <div>
-                        <label for="acct_session_time">Acct-Session-Time (s)</label>
-                        <input type="text" id="acct_session_time" name="acct_session_time" value="{{ acct_session_time or '0' }}">
-                    </div>
-                    <div>
-                        <label for="acct_input_octets">Acct-Input-Octets</label>
-                        <input type="text" id="acct_input_octets" name="acct_input_octets" value="{{ acct_input_octets or '0' }}">
-                    </div>
-                    <div>
-                        <label for="acct_output_octets">Acct-Output-Octets</label>
-                        <input type="text" id="acct_output_octets" name="acct_output_octets" value="{{ acct_output_octets or '0' }}">
-                    </div>
-                </div>
-                <button type="submit" class="btn-acct">Send Accounting-Request</button>
+                <button type="submit" class="submit">
+                    Send Accounting-Request
+                    <svg viewBox="0 0 14 14" fill="none"><path d="M1 13L13 1M13 1H1M13 1V13" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
             </form>
         </div>
 
         {% if parsed %}
-        <div class="result-box {{ 'result-accept' if parsed.result == 'Access-Accept' else 'result-reject' if parsed.result == 'Access-Reject' else 'result-unknown' }}">
-            <div class="result-label">
-                Result:
-                <span class="{{ 'accept' if parsed.result == 'Access-Accept' else 'reject' }}">
-                    {{ parsed.result }}
-                </span>
+        <div class="result">
+            <div class="result-status {{ 'accept' if parsed.result == 'Access-Accept' else 'reject' if parsed.result == 'Access-Reject' else 'unknown' }}">
+                <span class="result-dot"></span>
+                <span class="result-text">{{ parsed.result }}</span>
             </div>
 
             {% if parsed.attributes %}
-            <table>
-                <thead>
-                    <tr><th>Attribute</th><th>Value</th></tr>
-                </thead>
-                <tbody>
-                    {% for attr, value in parsed.attributes.items() %}
-                    <tr><td>{{ attr }}</td><td>{{ value }}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="attrs">
+                {% for attr, value in parsed.attributes.items() %}
+                <div class="attr-row">
+                    <span class="attr-name">{{ attr }}</span>
+                    <span class="attr-value">{{ value }}</span>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
         </div>
         {% endif %}
 
         {% if acct_parsed %}
-        <div class="result-box {{ 'result-acct' if acct_parsed.result == 'Accounting-Response' else 'result-unknown' }}">
-            <div class="result-label">
-                Result:
-                <span class="{{ 'acct-resp' if acct_parsed.result == 'Accounting-Response' else 'reject' }}">
-                    {{ acct_parsed.result }}
-                </span>
+        <div class="result">
+            <div class="result-status {{ 'accept' if acct_parsed.result == 'Accounting-Response' else 'unknown' }}">
+                <span class="result-dot"></span>
+                <span class="result-text">{{ acct_parsed.result }}</span>
             </div>
 
             {% if acct_parsed.attributes %}
-            <table>
-                <thead>
-                    <tr><th>Attribute</th><th>Value</th></tr>
-                </thead>
-                <tbody>
-                    {% for attr, value in acct_parsed.attributes.items() %}
-                    <tr><td>{{ attr }}</td><td>{{ value }}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="attrs">
+                {% for attr, value in acct_parsed.attributes.items() %}
+                <div class="attr-row">
+                    <span class="attr-name">{{ attr }}</span>
+                    <span class="attr-value">{{ value }}</span>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
         </div>
         {% endif %}
 
-        {% if output %}
-        <div class="result-box">
-            <h2>Raw radclient output</h2>
-            <pre>{{ output }}</pre>
+        {% if output or acct_output %}
+        <div x-data="{ open: false }">
+            <button class="raw-toggle" @click="open = !open" x-text="open ? 'Hide raw output' : 'Show raw output'"></button>
+            <div x-show="open" x-collapse>
+                {% if output %}
+                <pre>{{ output }}</pre>
+                {% endif %}
+                {% if acct_output %}
+                <pre>{{ acct_output }}</pre>
+                {% endif %}
+            </div>
         </div>
         {% endif %}
+    </main>
 
-        {% if acct_output %}
-        <div class="result-box">
-            <h2>Raw radclient output</h2>
-            <pre>{{ acct_output }}</pre>
-        </div>
-        {% endif %}
-    </div>
-
-    <script>
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab-' + tab).classList.add('active');
-            document.querySelectorAll('.tab')[tab === 'auth' ? 0 : 1].classList.add('active');
-        }
-        {% if acct_output or acct_parsed %}
-        switchTab('acct');
-        {% endif %}
-    </script>
+    <style>[x-cloak] { display: none !important; }</style>
 </body>
 </html>

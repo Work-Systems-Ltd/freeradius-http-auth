@@ -6,12 +6,14 @@ import subprocess
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 logger = logging.getLogger("radclient-ui")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 app = FastAPI(title="radclient-ui")
+app.mount("/static", StaticFiles(directory="/app/app/static"), name="static")
 templates = Jinja2Templates(directory="/app/app/templates")
 
 RADIUS_HOST = os.environ.get("RADIUS_HOST", "freeradius")
