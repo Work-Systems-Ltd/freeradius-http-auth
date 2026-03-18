@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("auth-svc")
@@ -79,7 +79,7 @@ async def authenticate(request: Request) -> JSONResponse:
             logger.warning("authenticate: CHAP failed for user %s", username)
             return JSONResponse({"Reply-Message": "CHAP authentication failed"}, status_code=401)
         logger.info("authenticate: CHAP success for user %s", username)
-        return JSONResponse({"Reply-Message": "CHAP authentication successful"})
+        return Response(status_code=204)
 
     # PAP authentication
     if user_password != stored_password:
@@ -87,7 +87,7 @@ async def authenticate(request: Request) -> JSONResponse:
         return JSONResponse({"Reply-Message": "Invalid password"}, status_code=401)
 
     logger.info("authenticate: PAP success for user %s", username)
-    return JSONResponse({"Reply-Message": "PAP authentication successful"})
+    return Response(status_code=204)
 
 
 def _verify_chap(chap_password_hex: str, chap_challenge_hex: str, stored_password: str) -> bool:
