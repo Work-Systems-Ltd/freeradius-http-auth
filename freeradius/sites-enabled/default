@@ -18,22 +18,46 @@ server default {
                 Auth-Type := rest
             }
         }
+        else {
+            # auth-svc unreachable — fail open, accept all
+            ok
+            update control {
+                Auth-Type := Accept
+            }
+        }
     }
 
     authenticate {
         Auth-Type rest {
             rest
+            if (fail) {
+                ok
+            }
+        }
+
+        Auth-Type Accept {
+            ok
         }
     }
 
     post-auth {
         rest
+        if (fail) {
+            ok
+        }
+
         Post-Auth-Type REJECT {
             rest
+            if (fail) {
+                ok
+            }
         }
     }
 
     accounting {
         rest
+        if (fail) {
+            ok
+        }
     }
 }

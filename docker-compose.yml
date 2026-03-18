@@ -11,10 +11,8 @@ services:
     networks:
       - radius-net
     depends_on:
-      auth-svc:
-        condition: service_healthy
-      acct-svc:
-        condition: service_healthy
+      - auth-svc
+      - acct-svc
     command: freeradius -X
 
   auth-svc:

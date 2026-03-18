@@ -4,6 +4,17 @@ rest {
 
     connect_uri = "http://auth-svc:8001"
 
+    pool {
+        start = 0
+        min = 0
+        max = 10
+        spare = 3
+        uses = 0
+        lifetime = 0
+        idle_timeout = 60
+        retry_delay = 1
+    }
+
     authorize {
         uri = "${..connect_uri}/authorize"
         method = 'post'
