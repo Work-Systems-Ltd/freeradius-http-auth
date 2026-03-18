@@ -16,13 +16,6 @@ rest {
     }
 
     authorize {
-        uri = "${..connect_uri}/authorize"
-        method = 'post'
-        body = 'json'
-        tls = ${..tls}
-    }
-
-    authenticate {
         uri = "${..connect_uri}/authenticate"
         method = 'post'
         body = 'json'

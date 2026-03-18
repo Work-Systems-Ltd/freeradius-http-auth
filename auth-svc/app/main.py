@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("auth-svc")
@@ -33,27 +33,6 @@ def _extract_attr(body: dict, attr: str) -> str:
     return str(val)
 
 
-@app.post("/authorize")
-async def authorize(request: Request) -> JSONResponse:
-    body = await request.json()
-    username = _extract_attr(body, "User-Name")
-    logger.info("authorize request for user=%s body=%s", username, body)
-
-    users = load_users()
-    user = users.get(username)
-
-    if user is None:
-        logger.warning("authorize: user %s not found", username)
-        return JSONResponse({"Reply-Message": "User not found"}, status_code=404)
-
-    reply: dict[str, Any] = {}
-    for attr, value in user["attributes"].items():
-        reply[attr] = value
-
-    logger.info("authorize: user %s found, returning %d attributes", username, len(reply))
-    return JSONResponse(reply)
-
-
 @app.post("/authenticate")
 async def authenticate(request: Request) -> JSONResponse:
     body = await request.json()
@@ -62,7 +41,7 @@ async def authenticate(request: Request) -> JSONResponse:
     chap_password = _extract_attr(body, "CHAP-Password")
     chap_challenge = _extract_attr(body, "CHAP-Challenge")
 
-    logger.info("authenticate request for user=%s chap=%s", username, bool(chap_password))
+    logger.info("authenticate user=%s chap=%s", username, bool(chap_password))
 
     users = load_users()
     user = users.get(username)
@@ -79,7 +58,7 @@ async def authenticate(request: Request) -> JSONResponse:
             logger.warning("authenticate: CHAP failed for user %s", username)
             return JSONResponse({"Reply-Message": "CHAP authentication failed"}, status_code=401)
         logger.info("authenticate: CHAP success for user %s", username)
-        return Response(status_code=204)
+        return JSONResponse(user["attributes"])
 
     # PAP authentication
     if user_password != stored_password:
@@ -87,7 +66,7 @@ async def authenticate(request: Request) -> JSONResponse:
         return JSONResponse({"Reply-Message": "Invalid password"}, status_code=401)
 
     logger.info("authenticate: PAP success for user %s", username)
-    return Response(status_code=204)
+    return JSONResponse(user["attributes"])
 
 
 def _verify_chap(chap_password_hex: str, chap_challenge_hex: str, stored_password: str) -> bool:

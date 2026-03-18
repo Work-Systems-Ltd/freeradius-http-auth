@@ -15,7 +15,7 @@ server default {
         rest
         if (ok || updated) {
             update control {
-                Auth-Type := rest
+                Auth-Type := Accept
             }
         }
         elsif (fail) {
@@ -28,14 +28,6 @@ server default {
     }
 
     authenticate {
-        Auth-Type rest {
-            rest
-            if (fail) {
-                # auth-svc unreachable — accept
-                ok
-            }
-        }
-
         Auth-Type Accept {
             ok
         }

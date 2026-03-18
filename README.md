@@ -9,7 +9,7 @@ FreeRADIUS 3.x test environment using `rlm_rest` to delegate authentication and 
 ```mermaid
 graph LR
     RC[radclient-ui<br/>:8000] -- "RADIUS<br/>UDP 1812/1813" --> FR[FreeRADIUS 3.x<br/>:1812 / :1813]
-    FR -- "HTTP POST<br/>/authorize<br/>/authenticate" --> AS[auth-svc<br/>:8001]
+    FR -- "HTTP POST<br/>/authenticate" --> AS[auth-svc<br/>:8001]
     FR -- "HTTP POST<br/>/post-auth<br/>/accounting" --> AC[acct-svc<br/>:8002]
     AS -. "reads" .-> UJ[(users.json)]
 ```
@@ -17,7 +17,7 @@ graph LR
 | Container | Role | Port |
 |---|---|---|
 | `freeradius` | RADIUS server, proxies auth/acct to HTTP backends via `rlm_rest` | 1812/udp, 1813/udp |
-| `auth-svc` | Authorize + authenticate against a JSON user file (PAP, CHAP) | 8001 |
+| `auth-svc` | Authenticates against a JSON user file (PAP, CHAP), returns reply attributes | 8001 |
 | `acct-svc` | Logs post-auth and accounting events to stdout | 8002 |
 | `radclient-ui` | Web UI that shells out to `radclient` | 8000 |
 
@@ -31,13 +31,10 @@ sequenceDiagram
     participant AC as acct-svc
 
     UI->>FR: Access-Request (UDP 1812)
-    FR->>AS: POST /authorize {User-Name, User-Password, ...}
-    AS-->>FR: 200 {Framed-IP-Address, Framed-Pool, ...}
-    Note over FR: Set Auth-Type := rest
-
     FR->>AS: POST /authenticate {User-Name, User-Password, ...}
     alt valid credentials
-        AS-->>FR: 204 No Content
+        AS-->>FR: 200 {Framed-IP-Address, Framed-Pool, ...}
+        Note over FR: Set Auth-Type := Accept
         FR->>AC: POST /post-auth
         AC-->>FR: 200
         FR-->>UI: Access-Accept + reply attributes
@@ -76,7 +73,7 @@ sequenceDiagram
     participant AC as acct-svc
 
     UI->>FR: Access-Request (UDP 1812)
-    FR-xAS: POST /authorize
+    FR-xAS: POST /authenticate
     Note over FR: rest returns fail
     Note over FR: Set Auth-Type := Accept (fail open)
 
@@ -97,10 +94,8 @@ sequenceDiagram
     participant AC as acct-svc (down)
 
     UI->>FR: Access-Request (UDP 1812)
-    FR->>AS: POST /authorize
-    AS-->>FR: 200
     FR->>AS: POST /authenticate
-    AS-->>FR: 204
+    AS-->>FR: 200 + reply attributes
     FR-xAC: POST /post-auth
     Note over FR: rest returns fail, silently accept
     Note over FR: Auth result unaffected
