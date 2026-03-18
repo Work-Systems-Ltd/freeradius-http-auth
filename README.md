@@ -83,6 +83,26 @@ sequenceDiagram
 
 ## Failover: acct-svc unavailable
 
+Post-auth and accounting both target acct-svc. If it is unreachable, both silently succeed and FreeRADIUS logs the request to stdout (running with `-X`). Authentication results are unaffected.
+
+```mermaid
+sequenceDiagram
+    participant UI as radclient-ui
+    participant FR as FreeRADIUS
+    participant AS as auth-svc
+    participant AC as acct-svc (down)
+
+    UI->>FR: Access-Request (UDP 1812)
+    FR->>AS: POST /authorize
+    AS-->>FR: 200
+    FR->>AS: POST /authenticate
+    AS-->>FR: 204
+    FR-xAC: POST /post-auth
+    Note over FR: rest returns fail, silently accept
+    Note over FR: Auth result unaffected
+    FR-->>UI: Access-Accept + reply attributes
+```
+
 ```mermaid
 sequenceDiagram
     participant UI as radclient-ui
