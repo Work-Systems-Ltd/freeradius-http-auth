@@ -1,0 +1,28 @@
+{
+  "subscriber1": {
+    "password": "secret123",
+    "attributes": {
+      "Framed-IP-Address": "10.0.0.2",
+      "Framed-IP-Netmask": "255.255.255.255",
+      "Framed-Pool": "POOL_RESIDENTIAL",
+      "Framed-Protocol": "PPP",
+      "Service-Type": "Framed-User",
+      "Framed-Route": "10.0.0.0/24 10.0.0.1",
+      "Acct-Interim-Interval": 300,
+      "Mikrotik-Rate-Limit": "50M/50M"
+    }
+  },
+  "subscriber2": {
+    "password": "pass456",
+    "attributes": {
+      "Framed-IP-Address": "10.0.0.3",
+      "Framed-IP-Netmask": "255.255.255.255",
+      "Framed-Pool": "POOL_BUSINESS",
+      "Framed-Protocol": "PPP",
+      "Service-Type": "Framed-User",
+      "Framed-Route": "10.0.1.0/24 10.0.1.1",
+      "Acct-Interim-Interval": 60,
+      "Mikrotik-Rate-Limit": "100M/100M"
+    }
+  }
+}

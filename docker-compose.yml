@@ -1,0 +1,66 @@
+services:
+  freeradius:
+    image: freeradius/freeradius-server:3.2.7
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ./freeradius/clients.conf:/etc/freeradius/clients.conf:ro
+      - ./freeradius/mods-enabled/rest:/etc/freeradius/mods-enabled/rest:ro
+      - ./freeradius/sites-enabled/default:/etc/freeradius/sites-enabled/default:ro
+    networks:
+      - radius-net
+    depends_on:
+      auth-svc:
+        condition: service_healthy
+      acct-svc:
+        condition: service_healthy
+    command: freeradius -X
+
+  auth-svc:
+    build: ./auth-svc
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./auth-svc/app:/app/app:ro
+      - ./auth-svc/data:/app/data:ro
+    networks:
+      - radius-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  acct-svc:
+    build: ./acct-svc
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./acct-svc/app:/app/app:ro
+    networks:
+      - radius-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/docs')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  radclient-ui:
+    build: ./radclient-ui
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./radclient-ui/app:/app/app:ro
+    environment:
+      - RADIUS_HOST=freeradius
+      - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
+    networks:
+      - radius-net
+    depends_on:
+      freeradius:
+        condition: service_started
+
+networks:
+  radius-net:
+    driver: bridge

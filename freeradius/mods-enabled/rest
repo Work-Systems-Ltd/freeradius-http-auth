@@ -1,0 +1,34 @@
+rest {
+    tls {
+    }
+
+    connect_uri = "http://auth-svc:8001"
+
+    authorize {
+        uri = "${..connect_uri}/authorize"
+        method = 'post'
+        body = 'json'
+        tls = ${..tls}
+    }
+
+    authenticate {
+        uri = "${..connect_uri}/authenticate"
+        method = 'post'
+        body = 'json'
+        tls = ${..tls}
+    }
+
+    accounting {
+        uri = "http://acct-svc:8002/accounting"
+        method = 'post'
+        body = 'json'
+        tls = ${..tls}
+    }
+
+    post-auth {
+        uri = "http://acct-svc:8002/post-auth"
+        method = 'post'
+        body = 'json'
+        tls = ${..tls}
+    }
+}

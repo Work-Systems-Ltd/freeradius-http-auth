@@ -1,0 +1,39 @@
+server default {
+    listen {
+        type = auth
+        ipaddr = *
+        port = 0
+    }
+
+    listen {
+        type = acct
+        ipaddr = *
+        port = 0
+    }
+
+    authorize {
+        rest
+        if (ok || updated) {
+            update control {
+                Auth-Type := rest
+            }
+        }
+    }
+
+    authenticate {
+        Auth-Type rest {
+            rest
+        }
+    }
+
+    post-auth {
+        rest
+        Post-Auth-Type REJECT {
+            rest
+        }
+    }
+
+    accounting {
+        rest
+    }
+}
