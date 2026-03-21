@@ -54,15 +54,36 @@ server default {
     }
 
     post-auth {
-        rest_acct
-        if (fail) {
+        acct_health
+        if (ok) {
+            # Cache hit — acct-svc recently failed, skip
             ok
+        }
+        else {
+            rest_acct
+            if (fail) {
+                update control {
+                    Cache-TTL := 10
+                }
+                acct_health
+                ok
+            }
         }
 
         Post-Auth-Type REJECT {
-            rest_acct
-            if (fail) {
+            acct_health
+            if (ok) {
                 ok
+            }
+            else {
+                rest_acct
+                if (fail) {
+                    update control {
+                        Cache-TTL := 10
+                    }
+                    acct_health
+                    ok
+                }
             }
         }
     }
@@ -73,9 +94,19 @@ server default {
 
     accounting {
         acct_health
-        rest_acct
-        if (fail) {
+        if (ok) {
+            # Cache hit — acct-svc recently failed, skip
             ok
+        }
+        else {
+            rest_acct
+            if (fail) {
+                update control {
+                    Cache-TTL := 10
+                }
+                acct_health
+                ok
+            }
         }
     }
 }
