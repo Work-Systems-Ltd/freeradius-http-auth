@@ -5,19 +5,24 @@ Accounting-Request packets, measuring the full round-trip through
 FreeRADIUS -> auth-svc/acct-svc and back.
 """
 
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import random
 import string
 import time
 
 import pyrad.packet
-from locust import User, between, tag, task
+from locust import User, constant_pacing, tag, task
 from pyrad.client import Client
 from pyrad.dictionary import Dictionary
 
 RADIUS_HOST = os.environ.get("RADIUS_HOST", "freeradius")
 RADIUS_SECRET = os.environ.get("RADIUS_SECRET", "testing123").encode()
 DICT_PATH = os.environ.get("RADIUS_DICT", "/app/dictionary")
+
+_DICT = Dictionary(DICT_PATH)
 
 
 def _session_id() -> str:
@@ -28,7 +33,7 @@ def _make_client() -> Client:
     client = Client(
         server=RADIUS_HOST,
         secret=RADIUS_SECRET,
-        dict=Dictionary(DICT_PATH),
+        dict=_DICT,
     )
     client.timeout = 5
     client.retries = 3
@@ -36,14 +41,14 @@ def _make_client() -> Client:
 
 
 class RadiusUser(User):
-    wait_time = between(0.01, 0.05)
+    # Fire as fast as possible — no artificial wait
+    wait_time = constant_pacing(0)
 
     def on_start(self):
         self.rad = _make_client()
 
     def _send(self, packet, request_type: str, name: str):
         start = time.perf_counter()
-        exc = None
         try:
             reply = self.rad.SendPacket(packet)
             elapsed_ms = (time.perf_counter() - start) * 1000
@@ -67,13 +72,12 @@ class RadiusUser(User):
             )
         except Exception as e:
             elapsed_ms = (time.perf_counter() - start) * 1000
-            exc = e
             self.environment.events.request.fire(
                 request_type=request_type,
                 name=name,
                 response_time=elapsed_ms,
                 response_length=0,
-                exception=exc,
+                exception=e,
             )
 
     @tag("auth")

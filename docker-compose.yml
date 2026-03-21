@@ -79,7 +79,7 @@ services:
     environment:
       - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
-    command: locust -f locustfile.py --master --expect-workers=5
+    command: locust -f locustfile.py --master --expect-workers=10
     networks:
       - radius-net
     depends_on:
@@ -95,7 +95,7 @@ services:
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
     command: locust -f locustfile.py --worker --master-host=locust-master
     deploy:
-      replicas: 5
+      replicas: 10
     networks:
       - radius-net
     depends_on:
