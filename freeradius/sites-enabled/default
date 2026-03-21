@@ -30,6 +30,9 @@ server default {
                     Auth-Type := Accept
                 }
             }
+            elsif (reject) {
+                reject
+            }
             elsif (fail) {
                 # auth-svc unreachable — write to cache and fail open
                 update control {
