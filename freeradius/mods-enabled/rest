@@ -23,16 +23,36 @@ rest {
         body = 'json'
         tls = ${..tls}
     }
+}
+
+rest rest_acct {
+    tls {
+    }
+
+    connect_uri = "http://acct-svc:8002"
+    connect_timeout = 10
+    timeout = 10
+
+    pool {
+        start = 16
+        min = 16
+        max = 64
+        spare = 8
+        uses = 0
+        lifetime = 0
+        idle_timeout = 60
+        retry_delay = 1
+    }
 
     accounting {
-        uri = "http://acct-svc:8002/accounting"
+        uri = "${..connect_uri}/accounting"
         method = 'post'
         body = 'json'
         tls = ${..tls}
     }
 
     post-auth {
-        uri = "http://acct-svc:8002/post-auth"
+        uri = "${..connect_uri}/post-auth"
         method = 'post'
         body = 'json'
         tls = ${..tls}

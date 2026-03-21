@@ -62,7 +62,7 @@ server default {
             ok
         }
         else {
-            rest
+            rest_acct
             if (fail) {
                 update control {
                     Cache-Read-Only !* ANY
@@ -81,7 +81,7 @@ server default {
                 ok
             }
             else {
-                rest
+                rest_acct
                 if (fail) {
                     update control {
                         Cache-Read-Only !* ANY
@@ -102,7 +102,7 @@ server default {
             ok
         }
         else {
-            rest
+            rest_acct
             if (fail) {
                 update control {
                     Cache-Read-Only !* ANY
