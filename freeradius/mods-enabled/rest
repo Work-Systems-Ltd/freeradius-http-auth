@@ -7,8 +7,8 @@ rest {
     timeout = 10
 
     pool {
-        start = 0
-        min = 0
+        start = 3
+        min = 3
         max = 10
         spare = 3
         uses = 0

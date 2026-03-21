@@ -110,22 +110,26 @@ sequenceDiagram
     FR-->>UI: Access-Accept (no reply attributes)
 ```
 
-### acct-svc unavailable
+### acct-svc unavailable (first request)
 
-Post-auth and accounting both target acct-svc. If it is unreachable, both silently succeed and FreeRADIUS logs the request to stdout (running with `-X`). Authentication results are unaffected.
+Post-auth and accounting both target acct-svc. If it is unreachable, the failure is cached for 10s (`rlm_cache` instance `acct_health`). Authentication results are unaffected.
 
 ```mermaid
 sequenceDiagram
     participant UI as radclient-ui
     participant FR as FreeRADIUS
+    participant CA as cache acct_health
     participant AS as auth-svc
     participant AC as acct-svc (down)
 
     UI->>FR: Access-Request (UDP 1812)
     FR->>AS: POST /authenticate
     AS-->>FR: 200 + reply attributes
+    FR->>CA: check cache
+    CA-->>FR: miss
     FR-xAC: POST /post-auth
-    Note over FR: rest returns fail, silently accept
+    Note over FR: rest returns fail/timeout
+    FR->>CA: store "down" (TTL 10s)
     Note over FR: Auth result unaffected
     FR-->>UI: Access-Accept + reply attributes
 ```
@@ -134,11 +138,30 @@ sequenceDiagram
 sequenceDiagram
     participant UI as radclient-ui
     participant FR as FreeRADIUS
+    participant CA as cache acct_health
     participant AC as acct-svc (down)
 
     UI->>FR: Accounting-Request (UDP 1813)
+    FR->>CA: check cache
+    CA-->>FR: miss
     FR-xAC: POST /accounting
-    Note over FR: rest returns fail, silently accept
+    Note over FR: rest returns fail/timeout
+    FR->>CA: store "down" (TTL 10s)
+    FR-->>UI: Accounting-Response
+```
+
+### acct-svc unavailable (cached, within 10s)
+
+```mermaid
+sequenceDiagram
+    participant UI as radclient-ui
+    participant FR as FreeRADIUS
+    participant CA as cache acct_health
+
+    UI->>FR: Accounting-Request (UDP 1813)
+    FR->>CA: check cache
+    CA-->>FR: hit (acct-svc known-down)
+    Note over FR: Skip REST call
     FR-->>UI: Accounting-Response
 ```
 
@@ -191,7 +214,7 @@ CHAP is supported. The service validates CHAP-Password against CHAP-Challenge us
 
 ### Failover
 
-If `auth-svc` is unreachable, FreeRADIUS fails open (accepts all). The failure is cached for 10 seconds (`rlm_cache` instance `rest_health`), so subsequent requests during that window skip the REST call entirely instead of waiting for a timeout. After the TTL expires the next request retries the API. If `acct-svc` is unreachable, accounting silently succeeds. Both cases are handled in `sites-enabled/default`.
+If `auth-svc` is unreachable, FreeRADIUS fails open (accepts all). The failure is cached for 10 seconds (`rlm_cache` instance `rest_health`), so subsequent requests during that window skip the REST call entirely instead of waiting for a timeout. The same pattern applies to `acct-svc` via the `acct_health` cache instance. After the TTL expires the next request retries the API. Both cases are handled in `sites-enabled/default`.
 
 ## File structure
 
