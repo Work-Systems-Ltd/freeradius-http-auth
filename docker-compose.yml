@@ -1,9 +1,19 @@
 services:
-  freeradius:
-    image: freeradius/freeradius-server:3.2.7
+  radius-lb:
+    image: nginx:1.27-alpine
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
+    volumes:
+      - ./nginx/radius-lb.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - radius-net
+    depends_on:
+      freeradius:
+        condition: service_started
+
+  freeradius:
+    image: freeradius/freeradius-server:3.2.7
     volumes:
       - ./freeradius/radiusd.conf:/etc/freeradius/radiusd.conf:ro
       - ./freeradius/clients.conf:/etc/freeradius/clients.conf:ro
@@ -15,6 +25,8 @@ services:
     depends_on:
       nginx:
         condition: service_started
+    deploy:
+      replicas: 4
     command: freeradius -f
 
   nginx:
@@ -65,13 +77,13 @@ services:
     volumes:
       - ./loadtest/locustfile.py:/app/locustfile.py:ro
     environment:
-      - RADIUS_HOST=freeradius
+      - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
     command: locust -f locustfile.py --master --expect-workers=5
     networks:
       - radius-net
     depends_on:
-      freeradius:
+      radius-lb:
         condition: service_started
 
   locust-worker:
@@ -79,7 +91,7 @@ services:
     volumes:
       - ./loadtest/locustfile.py:/app/locustfile.py:ro
     environment:
-      - RADIUS_HOST=freeradius
+      - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
     command: locust -f locustfile.py --worker --master-host=locust-master
     deploy:
@@ -97,12 +109,12 @@ services:
     volumes:
       - ./radclient-ui/app:/app/app
     environment:
-      - RADIUS_HOST=freeradius
+      - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
     networks:
       - radius-net
     depends_on:
-      freeradius:
+      radius-lb:
         condition: service_started
 
 networks:
