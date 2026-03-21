@@ -2,10 +2,18 @@ cache rest_health {
     driver = "rlm_cache_rbtree"
     key = "rest_api_auth"
     ttl = 10
+
+    update {
+        &control:Cache-Read-Only := "yes"
+    }
 }
 
 cache acct_health {
     driver = "rlm_cache_rbtree"
     key = "rest_api_acct"
     ttl = 10
+
+    update {
+        &control:Cache-Read-Only := "yes"
+    }
 }

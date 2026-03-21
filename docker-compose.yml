@@ -60,8 +60,6 @@ services:
     depends_on:
       freeradius:
         condition: service_started
-    profiles:
-      - loadtest
 
   radclient-ui:
     build: ./radclient-ui
