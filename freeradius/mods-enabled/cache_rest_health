@@ -4,7 +4,7 @@ cache rest_health {
     ttl = 10
 
     update {
-        &reply:Reply-Message := "auth-svc down"
+        &control:Tmp-String-0 := "down"
     }
 }
 
@@ -14,6 +14,6 @@ cache acct_health {
     ttl = 10
 
     update {
-        &reply:Reply-Message := "acct-svc down"
+        &control:Tmp-String-0 := "down"
     }
 }

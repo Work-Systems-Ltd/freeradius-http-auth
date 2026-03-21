@@ -72,9 +72,22 @@ server default {
     }
 
     accounting {
-        rest_acct
-        if (fail) {
+        update control {
+            Cache-Read-Only := yes
+        }
+        acct_health
+        if (ok) {
             ok
+        }
+        else {
+            rest_acct
+            if (fail) {
+                update control {
+                    Cache-Read-Only !* ANY
+                }
+                acct_health
+                ok
+            }
         }
     }
 }
