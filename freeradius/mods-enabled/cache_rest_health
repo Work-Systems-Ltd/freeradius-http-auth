@@ -1,0 +1,5 @@
+cache rest_health {
+    driver = "rlm_cache_rbtree"
+    key = "rest_api"
+    ttl = 10
+}

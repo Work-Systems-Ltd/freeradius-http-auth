@@ -12,17 +12,30 @@ server default {
     }
 
     authorize {
-        rest
-        if (ok || updated) {
+        rest_health
+        if (ok) {
+            # Cache hit — API recently failed, skip rest and fail open
             update control {
                 Auth-Type := Accept
             }
         }
-        elsif (fail) {
-            # auth-svc unreachable — fail open
-            ok
-            update control {
-                Auth-Type := Accept
+        else {
+            rest
+            if (ok || updated) {
+                update control {
+                    Auth-Type := Accept
+                }
+            }
+            elsif (fail || timeout) {
+                # auth-svc unreachable — cache the failure and fail open
+                update control {
+                    Cache-TTL := 10
+                }
+                cache_rest_health
+                ok
+                update control {
+                    Auth-Type := Accept
+                }
             }
         }
     }
