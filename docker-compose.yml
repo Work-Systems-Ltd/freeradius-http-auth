@@ -46,6 +46,23 @@ services:
       timeout: 3s
       retries: 10
 
+  loadtest:
+    build: ./loadtest
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./loadtest/locustfile.py:/app/locustfile.py:ro
+    environment:
+      - RADIUS_HOST=freeradius
+      - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
+    networks:
+      - radius-net
+    depends_on:
+      freeradius:
+        condition: service_started
+    profiles:
+      - loadtest
+
   radclient-ui:
     build: ./radclient-ui
     ports:
