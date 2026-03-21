@@ -4,7 +4,7 @@ cache rest_health {
     ttl = 10
 
     update {
-        &control:Cache-Read-Only := "yes"
+        &reply:Reply-Message := "auth-svc down"
     }
 }
 
@@ -14,6 +14,6 @@ cache acct_health {
     ttl = 10
 
     update {
-        &control:Cache-Read-Only := "yes"
+        &reply:Reply-Message := "acct-svc down"
     }
 }

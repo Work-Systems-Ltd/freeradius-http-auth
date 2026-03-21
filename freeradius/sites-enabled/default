@@ -12,6 +12,10 @@ server default {
     }
 
     authorize {
+        # Read-only cache check — do not create entry on miss
+        update control {
+            Cache-Read-Only := yes
+        }
         rest_health
         if (ok) {
             # Cache hit — API recently failed, skip rest and fail open
@@ -27,9 +31,9 @@ server default {
                 }
             }
             elsif (fail) {
-                # auth-svc unreachable — cache the failure and fail open
+                # auth-svc unreachable — write to cache and fail open
                 update control {
-                    Cache-TTL := 10
+                    Cache-Read-Only !* ANY
                 }
                 rest_health
                 ok
@@ -47,16 +51,18 @@ server default {
     }
 
     post-auth {
+        update control {
+            Cache-Read-Only := yes
+        }
         acct_health
         if (ok) {
-            # Cache hit — acct-svc recently failed, skip
             ok
         }
         else {
             rest
             if (fail) {
                 update control {
-                    Cache-TTL := 10
+                    Cache-Read-Only !* ANY
                 }
                 acct_health
                 ok
@@ -64,6 +70,9 @@ server default {
         }
 
         Post-Auth-Type REJECT {
+            update control {
+                Cache-Read-Only := yes
+            }
             acct_health
             if (ok) {
                 ok
@@ -72,7 +81,7 @@ server default {
                 rest
                 if (fail) {
                     update control {
-                        Cache-TTL := 10
+                        Cache-Read-Only !* ANY
                     }
                     acct_health
                     ok
@@ -82,16 +91,18 @@ server default {
     }
 
     accounting {
+        update control {
+            Cache-Read-Only := yes
+        }
         acct_health
         if (ok) {
-            # Cache hit — acct-svc recently failed, skip
             ok
         }
         else {
             rest
             if (fail) {
                 update control {
-                    Cache-TTL := 10
+                    Cache-Read-Only !* ANY
                 }
                 acct_health
                 ok
