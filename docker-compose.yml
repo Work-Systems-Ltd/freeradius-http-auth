@@ -13,19 +13,31 @@ services:
     networks:
       - radius-net
     depends_on:
-      - auth-svc
-      - acct-svc
+      nginx:
+        condition: service_started
     command: freeradius -f
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - radius-net
+    depends_on:
+      auth-svc:
+        condition: service_healthy
+      acct-svc:
+        condition: service_healthy
 
   auth-svc:
     build: ./auth-svc
-    ports:
-      - "8001:8001"
     volumes:
       - ./auth-svc/app:/app/app:ro
       - ./auth-svc/data:/app/data:ro
     networks:
       - radius-net
+    deploy:
+      replicas: 4
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')"]
       interval: 3s
@@ -34,19 +46,19 @@ services:
 
   acct-svc:
     build: ./acct-svc
-    ports:
-      - "8002:8002"
     volumes:
       - ./acct-svc/app:/app/app:ro
     networks:
       - radius-net
+    deploy:
+      replicas: 4
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/docs')"]
       interval: 3s
       timeout: 3s
       retries: 10
 
-  loadtest:
+  locust-master:
     build: ./loadtest
     ports:
       - "8089:8089"
@@ -55,10 +67,27 @@ services:
     environment:
       - RADIUS_HOST=freeradius
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
+    command: locust -f locustfile.py --master --expect-workers=5
     networks:
       - radius-net
     depends_on:
       freeradius:
+        condition: service_started
+
+  locust-worker:
+    build: ./loadtest
+    volumes:
+      - ./loadtest/locustfile.py:/app/locustfile.py:ro
+    environment:
+      - RADIUS_HOST=freeradius
+      - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
+    command: locust -f locustfile.py --worker --master-host=locust-master
+    deploy:
+      replicas: 5
+    networks:
+      - radius-net
+    depends_on:
+      locust-master:
         condition: service_started
 
   radclient-ui:
