@@ -54,62 +54,27 @@ server default {
     }
 
     post-auth {
-        update control {
-            Cache-Read-Only := yes
-        }
-        acct_health
-        if (ok) {
+        rest_acct
+        if (fail) {
             ok
-        }
-        else {
-            rest_acct
-            if (fail) {
-                update control {
-                    Cache-Read-Only !* ANY
-                }
-                acct_health
-                ok
-            }
         }
 
         Post-Auth-Type REJECT {
-            update control {
-                Cache-Read-Only := yes
-            }
-            acct_health
-            if (ok) {
+            rest_acct
+            if (fail) {
                 ok
-            }
-            else {
-                rest_acct
-                if (fail) {
-                    update control {
-                        Cache-Read-Only !* ANY
-                    }
-                    acct_health
-                    ok
-                }
             }
         }
     }
 
+    preacct {
+        ok
+    }
+
     accounting {
-        update control {
-            Cache-Read-Only := yes
-        }
-        acct_health
-        if (ok) {
+        rest_acct
+        if (fail) {
             ok
-        }
-        else {
-            rest_acct
-            if (fail) {
-                update control {
-                    Cache-Read-Only !* ANY
-                }
-                acct_health
-                ok
-            }
         }
     }
 }
