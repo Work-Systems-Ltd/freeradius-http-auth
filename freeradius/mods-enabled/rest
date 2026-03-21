@@ -7,10 +7,10 @@ rest {
     timeout = 10
 
     pool {
-        start = 3
-        min = 3
-        max = 10
-        spare = 3
+        start = 16
+        min = 16
+        max = 64
+        spare = 8
         uses = 0
         lifetime = 0
         idle_timeout = 60
