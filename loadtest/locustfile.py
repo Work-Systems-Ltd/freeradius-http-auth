@@ -30,8 +30,8 @@ def _make_client() -> Client:
         secret=RADIUS_SECRET,
         dict=Dictionary(DICT_PATH),
     )
-    client.timeout = 10
-    client.retries = 1
+    client.timeout = 5
+    client.retries = 3
     return client
 
 
