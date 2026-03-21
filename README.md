@@ -11,6 +11,7 @@ graph LR
     RC[radclient-ui<br/>:8000] -- "RADIUS<br/>UDP 1812/1813" --> FR[FreeRADIUS 3.x<br/>:1812 / :1813]
     FR -- "HTTP POST<br/>/authenticate" --> AS[auth-svc<br/>:8001]
     FR -- "HTTP POST<br/>/post-auth<br/>/accounting" --> AC[acct-svc<br/>:8002]
+    FR -. "check/store" .-> CH[(cache rest_health<br/>TTL 10s)]
     AS -. "reads" .-> UJ[(users.json)]
 ```
 
@@ -27,10 +28,13 @@ graph LR
 sequenceDiagram
     participant UI as radclient-ui
     participant FR as FreeRADIUS
+    participant C as cache rest_health
     participant AS as auth-svc
     participant AC as acct-svc
 
     UI->>FR: Access-Request (UDP 1812)
+    FR->>C: check cache
+    C-->>FR: miss (API not known-down)
     FR->>AS: POST /authenticate {User-Name, User-Password, ...}
     alt valid credentials
         AS-->>FR: 200 {Framed-IP-Address, Framed-Pool, ...}
@@ -63,19 +67,43 @@ sequenceDiagram
 
 ## Failover
 
-### auth-svc unavailable
+### auth-svc unavailable (first request)
 
 ```mermaid
 sequenceDiagram
     participant UI as radclient-ui
     participant FR as FreeRADIUS
+    participant C as cache rest_health
     participant AS as auth-svc (down)
     participant AC as acct-svc
 
     UI->>FR: Access-Request (UDP 1812)
+    FR->>C: check cache
+    C-->>FR: miss
     FR-xAS: POST /authenticate
-    Note over FR: rest returns fail
+    Note over FR: rest returns fail/timeout
+    FR->>C: store "down" (TTL 10s)
     Note over FR: Set Auth-Type := Accept (fail open)
+
+    FR->>AC: POST /post-auth
+    AC-->>FR: 200
+    FR-->>UI: Access-Accept (no reply attributes)
+```
+
+### auth-svc unavailable (cached, within 10s)
+
+```mermaid
+sequenceDiagram
+    participant UI as radclient-ui
+    participant FR as FreeRADIUS
+    participant C as cache rest_health
+    participant AC as acct-svc
+
+    UI->>FR: Access-Request (UDP 1812)
+    FR->>C: check cache
+    C-->>FR: hit (API known-down)
+    Note over FR: Skip REST call, fail open
+    Note over FR: Set Auth-Type := Accept
 
     FR->>AC: POST /post-auth
     AC-->>FR: 200
@@ -138,7 +166,8 @@ Volume-mounted config files:
 
 - `freeradius/radiusd.conf` -- server config, thread pool tuning
 - `freeradius/clients.conf` -- client definitions and shared secret
-- `freeradius/mods-enabled/rest` -- `rlm_rest` module, HTTP endpoints for auth/acct
+- `freeradius/mods-enabled/rest` -- `rlm_rest` module, HTTP endpoints for auth/acct (10s connect/request timeout)
+- `freeradius/mods-enabled/cache_rest_health` -- `rlm_cache` instance, caches auth-svc failures for 10s
 - `freeradius/sites-enabled/default` -- virtual server, processing sections
 
 ### auth-svc
@@ -162,7 +191,7 @@ CHAP is supported. The service validates CHAP-Password against CHAP-Challenge us
 
 ### Failover
 
-If `auth-svc` is unreachable, FreeRADIUS fails open (accepts all). If `acct-svc` is unreachable, accounting silently succeeds. Both cases are handled in `sites-enabled/default`.
+If `auth-svc` is unreachable, FreeRADIUS fails open (accepts all). The failure is cached for 10 seconds (`rlm_cache` instance `rest_health`), so subsequent requests during that window skip the REST call entirely instead of waiting for a timeout. After the TTL expires the next request retries the API. If `acct-svc` is unreachable, accounting silently succeeds. Both cases are handled in `sites-enabled/default`.
 
 ## File structure
 
@@ -173,6 +202,7 @@ freeradius-http-auth/
     radiusd.conf
     clients.conf
     mods-enabled/rest
+    mods-enabled/cache_rest_health
     sites-enabled/default
   auth-svc/
     Dockerfile
