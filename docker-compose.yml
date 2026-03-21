@@ -15,7 +15,7 @@ services:
     depends_on:
       - auth-svc
       - acct-svc
-    command: freeradius -X
+    command: freeradius -f
 
   auth-svc:
     build: ./auth-svc
