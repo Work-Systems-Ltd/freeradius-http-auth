@@ -72,9 +72,7 @@ server default {
     }
 
     accounting {
-        update control {
-            Tmp-String-0 := "test"
-        }
+        acct_health
         rest_acct
         if (fail) {
             ok
