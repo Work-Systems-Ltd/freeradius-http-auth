@@ -400,7 +400,7 @@
                 </div>
                 <div class="grid">
                     <div class="field">
-                        <label>Target RPS</label>
+                        <label>Concurrency</label>
                         <input type="number" x-model.number="lt.target_rps" min="10" max="50000">
                     </div>
                     <div class="field">
@@ -409,7 +409,7 @@
                     </div>
                 </div>
                 <p style="color: var(--muted); font-size: 12px; margin-top: 16px;">
-                    Parallelism scaled from target RPS. Split across hosts, 70/30 auth/acct.
+                    Parallel requests per host. Split 70/30 auth/acct across hosts.
                 </p>
                 <button class="submit" @click="lt.state === 'running' ? stopLT() : startLT()"
                         :style="lt.state === 'running' ? 'background: var(--red)' : ''">
@@ -538,12 +538,15 @@
             },
 
             async startLT() {
+                if (this.lt._poll) clearInterval(this.lt._poll);
                 this.lt.sent = 0;
                 this.lt.accepted = 0;
                 this.lt.rejected = 0;
                 this.lt.lost = 0;
                 this.lt.rps = 0;
                 this.lt.elapsed = 0;
+                this.lt.state = 'running';
+                this.lt._startedAt = Date.now();
                 await fetch('/api/loadtest/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -553,7 +556,6 @@
                         duration: this.lt.duration,
                     })
                 });
-                this.lt.state = 'running';
                 this.lt._poll = setInterval(() => this.pollLT(), 500);
             },
 
@@ -561,13 +563,19 @@
                 await fetch('/api/loadtest/stop', { method: 'POST' });
                 if (this.lt._poll) clearInterval(this.lt._poll);
                 this.lt._poll = null;
-                setTimeout(() => this.pollLT(), 500);
+                this.lt.state = 'idle';
+                setTimeout(() => this.pollLT(), 1000);
             },
 
             async pollLT() {
                 try {
                     const res = await fetch('/api/loadtest/status');
                     const s = await res.json();
+                    // Ignore stale idle responses for the first 3s after starting
+                    if (s.state === 'idle' && this.lt.state === 'running'
+                        && Date.now() - this.lt._startedAt < 3000) {
+                        return;
+                    }
                     this.lt.state = s.state;
                     this.lt.elapsed = s.elapsed;
                     this.lt.sent = s.sent;
@@ -576,7 +584,8 @@
                     this.lt.lost = s.lost;
                     this.lt.rps = s.rps;
 
-                    if (s.state !== 'running' && this.lt._poll) {
+                    if (s.state !== 'running' && this.lt._poll
+                        && Date.now() - this.lt._startedAt > 3000) {
                         clearInterval(this.lt._poll);
                         this.lt._poll = null;
                     }

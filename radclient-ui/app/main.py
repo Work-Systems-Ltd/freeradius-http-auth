@@ -231,8 +231,8 @@ class LoadTestManager:
         }
 
     def start(self, targets: list[str], target_rps: int, duration: int):
-        if self.running:
-            self.stop()
+        self.stop()
+        self._kill_all_radperf()
         self.running = True
         self._stop.clear()
         with self._lock:
@@ -257,6 +257,15 @@ class LoadTestManager:
         self.running = False
         with self._lock:
             self._stats["state"] = "idle"
+
+    @staticmethod
+    def _kill_all_radperf():
+        """Kill any orphaned radperf processes (e.g. after uvicorn reload)."""
+        try:
+            subprocess.run(["pkill", "-9", "radperf"],
+                           capture_output=True, timeout=5)
+        except Exception:
+            pass
 
     def status(self):
         with self._lock:
