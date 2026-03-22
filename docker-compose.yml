@@ -8,8 +8,6 @@ services:
       - ./nginx/radius-lb.conf:/etc/nginx/nginx.conf:ro
     networks:
       - radius-net
-    logging:
-      driver: "none"
     depends_on:
       freeradius-1:
         condition: service_started
@@ -26,16 +24,10 @@ services:
       - ./freeradius/sites-enabled/default:/etc/freeradius/sites-enabled/default:ro
     networks:
       - radius-net
-    logging: &logging-none
-      driver: "none"
     depends_on: &freeradius-depends
-      auth-svc-1:
+      auth-svc:
         condition: service_healthy
-      auth-svc-2:
-        condition: service_healthy
-      acct-svc-1:
-        condition: service_healthy
-      acct-svc-2:
+      acct-svc:
         condition: service_healthy
     command: freeradius -f
 
@@ -44,84 +36,37 @@ services:
     volumes: *freeradius-volumes
     networks:
       - radius-net
-    logging: *logging-none
     depends_on: *freeradius-depends
     command: freeradius -f
 
-  auth-svc-1:
+  auth-svc:
     build: ./auth-svc
-    volumes: &auth-svc-volumes
+    volumes:
       - ./auth-svc/app:/app/app:ro
       - ./auth-svc/data:/app/data:ro
     networks:
       - radius-net
-    logging: *logging-none
-    healthcheck: &auth-svc-healthcheck
+    deploy:
+      replicas: 2
+    healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')"]
       interval: 3s
       timeout: 3s
       retries: 10
 
-  auth-svc-2:
-    build: ./auth-svc
-    volumes: *auth-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *auth-svc-healthcheck
-
-  acct-svc-1:
+  acct-svc:
     build: ./acct-svc
-    volumes: &acct-svc-volumes
+    volumes:
       - ./acct-svc/app:/app/app:ro
     networks:
       - radius-net
-    logging: *logging-none
-    healthcheck: &acct-svc-healthcheck
+    deploy:
+      replicas: 2
+    healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/docs')"]
       interval: 3s
       timeout: 3s
       retries: 10
-
-  acct-svc-2:
-    build: ./acct-svc
-    volumes: *acct-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *acct-svc-healthcheck
-
-  locust-master:
-    build: ./loadtest
-    ports:
-      - "8089:8089"
-    volumes:
-      - ./loadtest/locustfile.py:/app/locustfile.py:ro
-    environment:
-      - RADIUS_HOST=radius-lb
-      - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
-    command: locust -f locustfile.py --master --expect-workers=10
-    networks:
-      - radius-net
-    depends_on:
-      radius-lb:
-        condition: service_started
-
-  locust-worker:
-    build: ./loadtest
-    volumes:
-      - ./loadtest/locustfile.py:/app/locustfile.py:ro
-    environment:
-      - RADIUS_HOST=radius-lb
-      - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
-    command: locust -f locustfile.py --worker --master-host=locust-master
-    deploy:
-      replicas: 10
-    networks:
-      - radius-net
-    depends_on:
-      locust-master:
-        condition: service_started
 
   radclient-ui:
     build: ./radclient-ui
@@ -132,6 +77,7 @@ services:
     environment:
       - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
+      - LOADTEST_TARGETS=freeradius-1,freeradius-2
     networks:
       - radius-net
     depends_on:

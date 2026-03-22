@@ -16,7 +16,7 @@ import time
 
 from locust import User, constant_pacing, tag, task
 
-RADIUS_HOST = os.environ.get("RADIUS_HOST", "freeradius")
+RADIUS_HOSTS = os.environ.get("RADIUS_HOSTS", os.environ.get("RADIUS_HOST", "freeradius")).split(",")
 RADIUS_SECRET = os.environ.get("RADIUS_SECRET", "testing123").encode()
 
 # RADIUS codes
@@ -26,15 +26,15 @@ ACCESS_REJECT = 3
 ACCOUNTING_REQUEST = 4
 ACCOUNTING_RESPONSE = 5
 
-# Resolve host once at import time
-_RESOLVED_HOST = None
+# Resolve all hosts once at import time
+_RESOLVED_HOSTS = None
 
 
-def _resolve_host():
-    global _RESOLVED_HOST
-    if _RESOLVED_HOST is None:
-        _RESOLVED_HOST = socket.gethostbyname(RADIUS_HOST)
-    return _RESOLVED_HOST
+def _resolve_hosts():
+    global _RESOLVED_HOSTS
+    if _RESOLVED_HOSTS is None:
+        _RESOLVED_HOSTS = [socket.gethostbyname(h.strip()) for h in RADIUS_HOSTS]
+    return _RESOLVED_HOSTS
 
 
 def _encode_attr(attr_type: int, value: bytes) -> bytes:
@@ -105,8 +105,9 @@ class RadiusUser(User):
     def on_start(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.settimeout(1)
-        self._addr = (_resolve_host(), 1812)
-        self._acct_addr = (_resolve_host(), 1813)
+        host = random.choice(_resolve_hosts())
+        self._addr = (host, 1812)
+        self._acct_addr = (host, 1813)
         self._id = 0
 
     def on_stop(self):

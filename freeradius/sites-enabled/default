@@ -24,10 +24,7 @@ server default {
             }
         }
         else {
-            load-balance {
-                rest_auth1
-                rest_auth2
-            }
+            rest
             if (ok || updated) {
                 update control {
                     Auth-Type := Accept
@@ -61,10 +58,7 @@ server default {
             ok
         }
         else {
-            load-balance {
-                rest_acct1
-                rest_acct2
-            }
+            rest_acct
             if (fail) {
                 update control {
                     Cache-TTL := 10
@@ -80,10 +74,7 @@ server default {
                 ok
             }
             else {
-                load-balance {
-                    rest_acct1
-                    rest_acct2
-                }
+                rest_acct
                 if (fail) {
                     update control {
                         Cache-TTL := 10
@@ -105,10 +96,7 @@ server default {
             ok
         }
         else {
-            load-balance {
-                rest_acct1
-                rest_acct2
-            }
+            rest_acct
             if (fail) {
                 update control {
                     Cache-TTL := 10

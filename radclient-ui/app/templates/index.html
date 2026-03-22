@@ -272,6 +272,15 @@
             .grid { grid-template-columns: 1fr; }
         }
 
+        .lt-rps {
+            font-size: 64px;
+            font-weight: 500;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            margin-bottom: 8px;
+            font-family: var(--mono);
+        }
+
         [x-cloak] { display: none !important; }
     </style>
 </head>
@@ -282,6 +291,7 @@
         <nav>
             <button :class="{ active: tab === 'auth' }" @click="tab = 'auth'">Authentication</button>
             <button :class="{ active: tab === 'acct' }" @click="tab = 'acct'">Accounting</button>
+            <button :class="{ active: tab === 'loadtest' }" @click="tab = 'loadtest'">Load Test</button>
         </nav>
     </header>
 
@@ -381,16 +391,77 @@
                 </button>
             </div>
 
+            <!-- Load Test form -->
+            <div x-show="tab === 'loadtest'" x-cloak>
+                <div class="label">radperf — radclient batch mode</div>
+                <div class="field">
+                    <label>Target Hosts</label>
+                    <input type="text" x-model="lt.targets" placeholder="freeradius-1,freeradius-2">
+                </div>
+                <div class="grid">
+                    <div class="field">
+                        <label>Target RPS (total)</label>
+                        <input type="number" x-model="lt.target_rps" min="10" max="50000">
+                    </div>
+                    <div class="field">
+                        <label>Batch Size (packets)</label>
+                        <input type="number" x-model="lt.batch_size" min="100" max="50000">
+                    </div>
+                </div>
+                <p style="color: var(--muted); font-size: 12px; margin-top: 16px;">
+                    C-based radclient with rate-limited sending (-n flag).
+                    RPS split evenly across target hosts. 70% auth + 30% accounting.
+                </p>
+                <button class="submit" @click="lt.state === 'running' ? stopLT() : startLT()"
+                        :style="lt.state === 'running' ? 'background: var(--red)' : ''">
+                    <template x-if="lt.state === 'running'"><span>Stop</span></template>
+                    <template x-if="lt.state !== 'running'"><span>Start</span></template>
+                </button>
+            </div>
+
         </div>
 
         <!-- Right: Result -->
         <div class="col">
 
-            <template x-if="!response">
+            <!-- Load test stats -->
+            <div x-show="tab === 'loadtest'" x-cloak>
+                <div class="label">Live Stats</div>
+                <div class="lt-rps" x-text="lt.batch_rps.toLocaleString()" :style="{ color: lt.state === 'running' ? 'var(--green)' : 'var(--muted)' }">0</div>
+                <div style="color: var(--muted); font-size: 13px; margin-bottom: 40px;">current RPS (batch)
+                    <span style="margin-left: 24px; color: var(--secondary);" x-text="lt.rps.toLocaleString() + ' avg'"></span>
+                </div>
+                <div class="attr-row">
+                    <span class="attr-name">Sent</span>
+                    <span class="attr-value" x-text="lt.sent.toLocaleString()"></span>
+                </div>
+                <div class="attr-row">
+                    <span class="attr-name">Accepted</span>
+                    <span class="attr-value" style="color: var(--green)" x-text="lt.accepted.toLocaleString()"></span>
+                </div>
+                <div class="attr-row">
+                    <span class="attr-name">Rejected</span>
+                    <span class="attr-value" x-text="lt.rejected.toLocaleString()"></span>
+                </div>
+                <div class="attr-row">
+                    <span class="attr-name">Lost</span>
+                    <span class="attr-value" :style="{ color: lt.lost > 0 ? 'var(--red)' : '' }" x-text="lt.lost.toLocaleString()"></span>
+                </div>
+                <div class="attr-row">
+                    <span class="attr-name">Elapsed</span>
+                    <span class="attr-value" x-text="lt.elapsed.toFixed(1) + 's'"></span>
+                </div>
+                <div class="attr-row" x-show="lt.sent > 0">
+                    <span class="attr-name">Success Rate</span>
+                    <span class="attr-value" x-text="((lt.accepted / lt.sent) * 100).toFixed(1) + '%'"></span>
+                </div>
+            </div>
+
+            <template x-if="!response && tab !== 'loadtest'">
                 <p class="empty">Response will appear here.</p>
             </template>
 
-            <template x-if="response">
+            <template x-if="response && tab !== 'loadtest'">
                 <div>
                     <div class="result-status">
                         <span class="result-dot" :style="{
@@ -456,6 +527,56 @@
                 acct_session_time: '0',
                 acct_input_octets: '0',
                 acct_output_octets: '0'
+            },
+
+            lt: {
+                targets: '{{ default_targets }}',
+                target_rps: 5000,
+                batch_size: 5000,
+                state: 'idle',
+                elapsed: 0, sent: 0, accepted: 0, rejected: 0, lost: 0,
+                rps: 0, batch_rps: 0,
+                _poll: null,
+            },
+
+            async startLT() {
+                await fetch('/api/loadtest/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        targets: this.lt.targets,
+                        target_rps: this.lt.target_rps,
+                        batch_size: this.lt.batch_size,
+                    })
+                });
+                this.lt.state = 'running';
+                this.lt._poll = setInterval(() => this.pollLT(), 500);
+            },
+
+            async stopLT() {
+                await fetch('/api/loadtest/stop', { method: 'POST' });
+                if (this.lt._poll) clearInterval(this.lt._poll);
+                this.lt._poll = null;
+                setTimeout(() => this.pollLT(), 500);
+            },
+
+            async pollLT() {
+                try {
+                    const res = await fetch('/api/loadtest/status');
+                    const s = await res.json();
+                    this.lt.state = s.state;
+                    this.lt.elapsed = s.elapsed;
+                    this.lt.sent = s.sent;
+                    this.lt.accepted = s.accepted;
+                    this.lt.rejected = s.rejected;
+                    this.lt.lost = s.lost;
+                    this.lt.rps = s.rps;
+                    this.lt.batch_rps = s.batch_rps;
+                    if (s.state !== 'running' && this.lt._poll) {
+                        clearInterval(this.lt._poll);
+                        this.lt._poll = null;
+                    }
+                } catch(e) {}
             },
 
             async sendAuth() {
