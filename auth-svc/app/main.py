@@ -13,16 +13,10 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(leveln
 app = FastAPI(title="auth-svc")
 
 USERS_FILE = Path("/app/data/users.json")
-_users_cache: dict[str, Any] | None = None
-_users_mtime: float = 0
+_users_cache: dict[str, Any] = json.loads(USERS_FILE.read_text())
 
 
 def load_users() -> dict[str, Any]:
-    global _users_cache, _users_mtime
-    mtime = USERS_FILE.stat().st_mtime
-    if _users_cache is None or mtime != _users_mtime:
-        _users_cache = json.loads(USERS_FILE.read_text())
-        _users_mtime = mtime
     return _users_cache
 
 
