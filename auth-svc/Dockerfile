@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ app/
 COPY data/ data/
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "4", "--no-access-log", "--loop", "uvloop"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-w", "8", "--threads", "1", "--worker-connections", "1000", "--bind", "0.0.0.0:8001", "--access-logfile", "/dev/null", "app.main:app"]

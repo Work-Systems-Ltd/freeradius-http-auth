@@ -1,4 +1,6 @@
 fastapi==0.115.6
 uvicorn==0.34.0
+gunicorn>=22.0
 orjson>=3.10
 uvloop>=0.21
+httptools>=0.6
