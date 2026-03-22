@@ -9,12 +9,18 @@ services:
     networks:
       - radius-net
     depends_on:
-      freeradius:
+      freeradius-1:
+        condition: service_started
+      freeradius-2:
+        condition: service_started
+      freeradius-3:
+        condition: service_started
+      freeradius-4:
         condition: service_started
 
-  freeradius:
+  freeradius-1:
     image: freeradius/freeradius-server:3.2.7
-    volumes:
+    volumes: &freeradius-volumes
       - ./freeradius/radiusd.conf:/etc/freeradius/radiusd.conf:ro
       - ./freeradius/clients.conf:/etc/freeradius/clients.conf:ro
       - ./freeradius/mods-enabled/rest:/etc/freeradius/mods-enabled/rest:ro
@@ -22,11 +28,33 @@ services:
       - ./freeradius/sites-enabled/default:/etc/freeradius/sites-enabled/default:ro
     networks:
       - radius-net
-    depends_on:
+    depends_on: &freeradius-depends
       nginx:
         condition: service_started
-    deploy:
-      replicas: 4
+    command: freeradius -f
+
+  freeradius-2:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
+  freeradius-3:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
+  freeradius-4:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    depends_on: *freeradius-depends
     command: freeradius -f
 
   nginx:
@@ -36,39 +64,89 @@ services:
     networks:
       - radius-net
     depends_on:
-      auth-svc:
+      auth-svc-1:
         condition: service_healthy
-      acct-svc:
+      auth-svc-2:
+        condition: service_healthy
+      auth-svc-3:
+        condition: service_healthy
+      auth-svc-4:
+        condition: service_healthy
+      acct-svc-1:
+        condition: service_healthy
+      acct-svc-2:
+        condition: service_healthy
+      acct-svc-3:
+        condition: service_healthy
+      acct-svc-4:
         condition: service_healthy
 
-  auth-svc:
+  auth-svc-1:
     build: ./auth-svc
-    volumes:
+    volumes: &auth-svc-volumes
       - ./auth-svc/app:/app/app:ro
       - ./auth-svc/data:/app/data:ro
     networks:
       - radius-net
-    deploy:
-      replicas: 4
-    healthcheck:
+    healthcheck: &auth-svc-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')"]
       interval: 3s
       timeout: 3s
       retries: 10
 
-  acct-svc:
+  auth-svc-2:
+    build: ./auth-svc
+    volumes: *auth-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *auth-svc-healthcheck
+
+  auth-svc-3:
+    build: ./auth-svc
+    volumes: *auth-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *auth-svc-healthcheck
+
+  auth-svc-4:
+    build: ./auth-svc
+    volumes: *auth-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *auth-svc-healthcheck
+
+  acct-svc-1:
     build: ./acct-svc
-    volumes:
+    volumes: &acct-svc-volumes
       - ./acct-svc/app:/app/app:ro
     networks:
       - radius-net
-    deploy:
-      replicas: 4
-    healthcheck:
+    healthcheck: &acct-svc-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/docs')"]
       interval: 3s
       timeout: 3s
       retries: 10
+
+  acct-svc-2:
+    build: ./acct-svc
+    volumes: *acct-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *acct-svc-healthcheck
+
+  acct-svc-3:
+    build: ./acct-svc
+    volumes: *acct-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *acct-svc-healthcheck
+
+  acct-svc-4:
+    build: ./acct-svc
+    volumes: *acct-svc-volumes
+    networks:
+      - radius-net
+    healthcheck: *acct-svc-healthcheck
 
   locust-master:
     build: ./loadtest
