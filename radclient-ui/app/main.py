@@ -265,10 +265,9 @@ class LoadTestManager:
         with self._lock:
             return dict(self._stats)
 
-    def _run(self, targets: list[str], target_rps: int, duration: int):
+    def _run(self, targets: list[str], concurrency: int, duration: int):
         t0 = time.monotonic()
 
-        # Write request files
         auth_file = "/tmp/lt_auth.txt"
         acct_file = "/tmp/lt_acct.txt"
         with open(auth_file, "w") as f:
@@ -280,21 +279,18 @@ class LoadTestManager:
                     'NAS-Port = 0\n')
 
         num_hosts = len(targets)
-        # Use -p (parallelism) not -n (rate) — radperf -n is serial and too slow.
-        # Parallelism = target_rps * expected_latency. Assume ~5ms avg → rps/200.
-        # Generous minimum to handle variance.
-        auth_rps_per_host = max(1, int(target_rps * 0.7) // num_hosts)
-        acct_rps_per_host = max(1, int(target_rps * 0.3) // num_hosts)
-        auth_par = min(500, max(20, auth_rps_per_host // 10))
-        acct_par = min(500, max(10, acct_rps_per_host // 10))
-        auth_count = auth_rps_per_host * duration
-        acct_count = acct_rps_per_host * duration
+        # 70/30 auth/acct split, divided across hosts
+        auth_conc_per_host = max(1, int(concurrency * 0.7) // num_hosts)
+        acct_conc_per_host = max(1, int(concurrency * 0.3) // num_hosts)
+        auth_par = min(500, max(20, auth_conc_per_host // 10))
+        acct_par = min(500, max(10, acct_conc_per_host // 10))
+        auth_count = auth_conc_per_host * duration
+        acct_count = acct_conc_per_host * duration
 
-        logger.info("Load test: targets=%s rps=%d duration=%ds",
-                     targets, target_rps, duration)
-        logger.info("Per host: auth=%d/s (par=%d, count=%d) acct=%d/s (par=%d, count=%d)",
-                     auth_rps_per_host, auth_par, auth_count,
-                     acct_rps_per_host, acct_par, acct_count)
+        logger.info("Load test: targets=%s concurrency=%d duration=%ds",
+                     targets, concurrency, duration)
+        logger.info("Per host: auth(par=%d, count=%d) acct(par=%d, count=%d)",
+                     auth_par, auth_count, acct_par, acct_count)
 
         try:
             # Launch one radperf per host per type for the full duration
@@ -339,7 +335,6 @@ class LoadTestManager:
                 total_elapsed = time.monotonic() - t0
                 self._stats["elapsed"] = round(total_elapsed, 1)
                 self._stats["rps"] = round(self._stats["sent"] / total_elapsed) if total_elapsed > 0 else 0
-                self._stats["batch_rps"] = self._stats["rps"]
         finally:
             with self._lock:
                 self._stats["state"] = "idle"
@@ -395,11 +390,10 @@ _loadtest = LoadTestManager()
 async def loadtest_start(request: Request) -> JSONResponse:
     body = await request.json()
     targets = [t.strip() for t in body.get("targets", LOADTEST_TARGETS).split(",") if t.strip()]
-    target_rps = min(50000, max(10, int(body.get("target_rps", 5000))))
+    concurrency = min(50000, max(10, int(body.get("concurrency", 5000))))
     duration = min(300, max(5, int(body.get("duration", 30))))
-    ok = _loadtest.start(targets=targets, target_rps=target_rps, duration=duration)
-    return JSONResponse({"started": ok, "target_rps": target_rps, "duration": duration,
-                         "tool": "radperf"})
+    ok = _loadtest.start(targets=targets, concurrency=concurrency, duration=duration)
+    return JSONResponse({"started": ok, "concurrency": concurrency, "duration": duration})
 
 
 @app.post("/api/loadtest/stop")

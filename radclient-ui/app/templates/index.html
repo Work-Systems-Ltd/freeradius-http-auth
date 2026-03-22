@@ -535,6 +535,7 @@
                 elapsed: 0, sent: 0, accepted: 0, rejected: 0, lost: 0,
                 rps: 0,
                 _poll: null,
+                _startedAt: 0,
             },
 
             async startLT() {
@@ -552,7 +553,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         targets: this.lt.targets,
-                        target_rps: this.lt.target_rps,
+                        concurrency: this.lt.target_rps,
                         duration: this.lt.duration,
                     })
                 });
