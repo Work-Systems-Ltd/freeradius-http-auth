@@ -237,8 +237,9 @@ class LoadTestManager:
         num_hosts = len(targets)
         auth_rps_per_host = max(1, int(target_rps * 0.7) // num_hosts)
         acct_rps_per_host = max(1, int(target_rps * 0.3) // num_hosts)
-        auth_par = min(256, max(5, int(auth_rps_per_host * 0.015)))
-        acct_par = min(256, max(3, int(acct_rps_per_host * 0.008)))
+        # Actual response time through Docker+rlm_rest is ~50-100ms for auth, ~20ms for acct
+        auth_par = min(256, max(10, int(auth_rps_per_host * 0.1)))
+        acct_par = min(256, max(5, int(acct_rps_per_host * 0.05)))
         # Auto-size batches to complete in ~3 seconds for responsive UI updates
         auth_batch = min(batch_size, max(50, auth_rps_per_host * 3))
         acct_batch = min(batch_size, max(50, acct_rps_per_host * 3))
