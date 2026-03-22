@@ -12,19 +12,22 @@ server default {
     }
 
     authorize {
-        # Read-only cache check — do not create entry on miss
         update control {
             Cache-Read-Only := yes
         }
         rest_health
         if (ok) {
-            # Cache hit — API recently failed, skip rest and fail open
             update control {
                 Auth-Type := Accept
             }
         }
         else {
-            rest
+            load-balance {
+                rest_auth1
+                rest_auth2
+                rest_auth3
+                rest_auth4
+            }
             if (ok || updated) {
                 update control {
                     Auth-Type := Accept
@@ -34,7 +37,6 @@ server default {
                 reject
             }
             elsif (fail) {
-                # auth-svc unreachable — write to cache and fail open
                 update control {
                     Cache-Read-Only !* ANY
                 }
@@ -56,11 +58,15 @@ server default {
     post-auth {
         acct_health
         if (ok) {
-            # Cache hit — acct-svc recently failed, skip
             ok
         }
         else {
-            rest_acct
+            load-balance {
+                rest_acct1
+                rest_acct2
+                rest_acct3
+                rest_acct4
+            }
             if (fail) {
                 update control {
                     Cache-TTL := 10
@@ -76,7 +82,12 @@ server default {
                 ok
             }
             else {
-                rest_acct
+                load-balance {
+                    rest_acct1
+                    rest_acct2
+                    rest_acct3
+                    rest_acct4
+                }
                 if (fail) {
                     update control {
                         Cache-TTL := 10
@@ -95,11 +106,15 @@ server default {
     accounting {
         acct_health
         if (ok) {
-            # Cache hit — acct-svc recently failed, skip
             ok
         }
         else {
-            rest_acct
+            load-balance {
+                rest_acct1
+                rest_acct2
+                rest_acct3
+                rest_acct4
+            }
             if (fail) {
                 update control {
                     Cache-TTL := 10

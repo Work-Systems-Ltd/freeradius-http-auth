@@ -8,6 +8,8 @@ services:
       - ./nginx/radius-lb.conf:/etc/nginx/nginx.conf:ro
     networks:
       - radius-net
+    logging:
+      driver: "none"
     depends_on:
       freeradius-1:
         condition: service_started
@@ -28,42 +30,9 @@ services:
       - ./freeradius/sites-enabled/default:/etc/freeradius/sites-enabled/default:ro
     networks:
       - radius-net
+    logging: &logging-none
+      driver: "none"
     depends_on: &freeradius-depends
-      nginx:
-        condition: service_started
-    command: freeradius -f
-
-  freeradius-2:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-3:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-4:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  nginx:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    networks:
-      - radius-net
-    depends_on:
       auth-svc-1:
         condition: service_healthy
       auth-svc-2:
@@ -80,6 +49,34 @@ services:
         condition: service_healthy
       acct-svc-4:
         condition: service_healthy
+    command: freeradius -f
+
+  freeradius-2:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    logging: *logging-none
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
+  freeradius-3:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    logging: *logging-none
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
+  freeradius-4:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    logging: *logging-none
+    depends_on: *freeradius-depends
+    command: freeradius -f
 
   auth-svc-1:
     build: ./auth-svc
@@ -88,6 +85,7 @@ services:
       - ./auth-svc/data:/app/data:ro
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: &auth-svc-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')"]
       interval: 3s
@@ -99,6 +97,7 @@ services:
     volumes: *auth-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *auth-svc-healthcheck
 
   auth-svc-3:
@@ -106,6 +105,7 @@ services:
     volumes: *auth-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *auth-svc-healthcheck
 
   auth-svc-4:
@@ -113,6 +113,7 @@ services:
     volumes: *auth-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *auth-svc-healthcheck
 
   acct-svc-1:
@@ -121,6 +122,7 @@ services:
       - ./acct-svc/app:/app/app:ro
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: &acct-svc-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/docs')"]
       interval: 3s
@@ -132,6 +134,7 @@ services:
     volumes: *acct-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *acct-svc-healthcheck
 
   acct-svc-3:
@@ -139,6 +142,7 @@ services:
     volumes: *acct-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *acct-svc-healthcheck
 
   acct-svc-4:
@@ -146,6 +150,7 @@ services:
     volumes: *acct-svc-volumes
     networks:
       - radius-net
+    logging: *logging-none
     healthcheck: *acct-svc-healthcheck
 
   locust-master:
