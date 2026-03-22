@@ -8,31 +8,55 @@ FreeRADIUS 3.x test environment using `rlm_rest` to delegate authentication and 
 
 ```mermaid
 graph LR
-    RC[radclient-ui<br/>:8000] -- "RADIUS<br/>UDP 1812/1813" --> FR[FreeRADIUS 3.x<br/>:1812 / :1813]
-    FR -- "HTTP POST<br/>/authenticate" --> AS[auth-svc<br/>:8001]
-    FR -- "HTTP POST<br/>/post-auth<br/>/accounting" --> AC[acct-svc<br/>:8002]
-    FR -. "check/store" .-> CH[(cache rest_health<br/>TTL 10s)]
+    RC[radclient-ui<br/>:8000] -- "RADIUS<br/>UDP 1812/1813" --> LB[radius-lb<br/>nginx stream<br/>:1812 / :1813]
+    LT[locust<br/>:8089] -- "RADIUS<br/>UDP 1812/1813" --> LB
+    LB -- "hash consistent" --> FR1[FreeRADIUS ×4]
+    FR1 -- "load-balance<br/>HTTP POST /authenticate" --> AS[auth-svc ×4<br/>:8001]
+    FR1 -- "load-balance<br/>HTTP POST /post-auth<br/>/accounting" --> AC[acct-svc ×4<br/>:8002]
+    FR1 -. "check/store" .-> CH[(cache rest_health<br/>TTL 10s)]
     AS -. "reads" .-> UJ[(users.json)]
 ```
 
-| Container | Role | Port |
-|---|---|---|
-| `freeradius` | RADIUS server, proxies auth/acct to HTTP backends via `rlm_rest` | 1812/udp, 1813/udp |
-| `auth-svc` | Authenticates against a JSON user file (PAP, CHAP), returns reply attributes | 8001 |
-| `acct-svc` | Logs post-auth and accounting events to stdout | 8002 |
-| `radclient-ui` | Web UI that shells out to `radclient` | 8000 |
+| Container | Role | Instances | Port |
+|---|---|---|---|
+| `radius-lb` | nginx UDP load balancer, distributes RADIUS to FreeRADIUS instances via consistent hash | 1 | 1812/udp, 1813/udp |
+| `freeradius-{1..4}` | RADIUS server, delegates auth/acct to HTTP backends via `rlm_rest` with `load-balance` | 4 | 1812/udp, 1813/udp |
+| `auth-svc-{1..4}` | Authenticates against a JSON user file (PAP, CHAP), returns reply attributes | 4 | 8001 |
+| `acct-svc-{1..4}` | Logs post-auth and accounting events | 4 | 8002 |
+| `locust-master` | Load test orchestrator | 1 | 8089 |
+| `locust-worker` | Load test workers sending RADIUS packets via pyrad | 10 | - |
+| `radclient-ui` | Web UI for manual RADIUS testing | 1 | 8000 |
+
+### Request flow
+
+```
+AUTH (70% of load test traffic):
+  locust ──UDP──▶ radius-lb ──UDP──▶ freeradius-N
+    freeradius-N ──HTTP POST /authenticate──▶ auth-svc-{random 1-4}
+    freeradius-N ──HTTP POST /post-auth─────▶ acct-svc-{random 1-4}
+  freeradius-N ──UDP──▶ radius-lb ──UDP──▶ locust
+
+ACCT (30% of load test traffic):
+  locust ──UDP──▶ radius-lb ──UDP──▶ freeradius-N
+    freeradius-N ──HTTP POST /accounting────▶ acct-svc-{random 1-4}
+  freeradius-N ──UDP──▶ radius-lb ──UDP──▶ locust
+```
+
+FreeRADIUS connects directly to the backend services (no HTTP reverse proxy). Each FreeRADIUS instance uses `load-balance` blocks with 4 `rlm_rest` module instances (one per backend) to distribute HTTP calls evenly.
 
 ## Authentication flow
 
 ```mermaid
 sequenceDiagram
     participant UI as radclient-ui
+    participant LB as radius-lb
     participant FR as FreeRADIUS
     participant C as cache rest_health
     participant AS as auth-svc
     participant AC as acct-svc
 
-    UI->>FR: Access-Request (UDP 1812)
+    UI->>LB: Access-Request (UDP 1812)
+    LB->>FR: proxy (consistent hash)
     FR->>C: check cache
     C-->>FR: miss (API not known-down)
     FR->>AS: POST /authenticate {User-Name, User-Password, ...}
@@ -41,12 +65,14 @@ sequenceDiagram
         Note over FR: Set Auth-Type := Accept
         FR->>AC: POST /post-auth
         AC-->>FR: 200
-        FR-->>UI: Access-Accept + reply attributes
+        FR-->>LB: Access-Accept + reply attributes
+        LB-->>UI: proxy response
     else invalid credentials
         AS-->>FR: 401 {Reply-Message}
         FR->>AC: POST /post-auth (REJECT)
         AC-->>FR: 200
-        FR-->>UI: Access-Reject
+        FR-->>LB: Access-Reject
+        LB-->>UI: proxy response
     end
 ```
 
@@ -55,14 +81,17 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant UI as radclient-ui
+    participant LB as radius-lb
     participant FR as FreeRADIUS
     participant AC as acct-svc
 
-    UI->>FR: Accounting-Request (UDP 1813)
+    UI->>LB: Accounting-Request (UDP 1813)
+    LB->>FR: proxy (consistent hash)
     Note over FR: Acct-Status-Type: Start | Stop | Interim-Update
     FR->>AC: POST /accounting {User-Name, Acct-Status-Type, Acct-Session-Id, ...}
     AC-->>FR: 200
-    FR-->>UI: Accounting-Response
+    FR-->>LB: Accounting-Response
+    LB-->>UI: proxy response
 ```
 
 ## Failover
@@ -175,6 +204,14 @@ Open `http://localhost:8000`.
 
 Default test user: `subscriber1` / `secret123`.
 
+## Load testing
+
+Open `http://localhost:8089` for the Locust web UI. The test uses 10 worker processes sending real RADIUS packets via pyrad.
+
+Task mix (weighted):
+- `Access-Request` valid credentials (10), bad password (3), unknown user (1)
+- `Accounting-Request` Start (3), Interim-Update (2), Stop (1)
+
 ## Configuration
 
 RADIUS shared secret defaults to `testing123`. Override with:
@@ -189,9 +226,9 @@ Volume-mounted config files:
 
 - `freeradius/radiusd.conf` -- server config, thread pool tuning
 - `freeradius/clients.conf` -- client definitions and shared secret
-- `freeradius/mods-enabled/rest` -- `rlm_rest` module, HTTP endpoints for auth/acct (10s connect/request timeout)
-- `freeradius/mods-enabled/cache_rest_health` -- `rlm_cache` instance, caches auth-svc failures for 10s
-- `freeradius/sites-enabled/default` -- virtual server, processing sections
+- `freeradius/mods-enabled/rest` -- `rlm_rest` module instances (`rest_auth1..4`, `rest_acct1..4`), direct HTTP connections to backends with per-instance connection pools (3s timeout)
+- `freeradius/mods-enabled/cache_rest_health` -- `rlm_cache` instance, caches auth-svc/acct-svc failures for 10s
+- `freeradius/sites-enabled/default` -- virtual server, uses `load-balance` blocks to distribute HTTP calls across backend instances
 
 ### auth-svc
 
@@ -227,6 +264,8 @@ freeradius-http-auth/
     mods-enabled/rest
     mods-enabled/cache_rest_health
     sites-enabled/default
+  nginx/
+    radius-lb.conf
   auth-svc/
     Dockerfile
     requirements.txt
@@ -238,6 +277,11 @@ freeradius-http-auth/
     requirements.txt
     app/main.py
     app/models.py
+  loadtest/
+    Dockerfile
+    requirements.txt
+    locustfile.py
+    dictionary
   radclient-ui/
     Dockerfile
     requirements.txt
@@ -248,10 +292,14 @@ freeradius-http-auth/
 
 ## Development
 
-All Python services run with `--reload`. Source files are volume-mounted, so code changes take effect without rebuilding.
-
 FreeRADIUS config changes require a container restart:
 
 ```
-docker compose restart freeradius
+docker compose restart freeradius-1 freeradius-2 freeradius-3 freeradius-4
+```
+
+Python service code is volume-mounted. Restart the services to pick up changes:
+
+```
+docker compose restart auth-svc-1 auth-svc-2 auth-svc-3 auth-svc-4
 ```
