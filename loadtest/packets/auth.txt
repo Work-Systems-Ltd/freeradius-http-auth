@@ -1,4 +1,0 @@
-User-Name = "subscriber1"
-User-Password = "secret123"
-NAS-IP-Address = 127.0.0.1
-NAS-Port = 0

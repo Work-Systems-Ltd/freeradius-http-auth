@@ -153,7 +153,7 @@ def _parse_radclient_output(output: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Load test manager — runs radclient in batch mode from a background thread
+# Load test manager — runs radperf processes from a background thread
 # ---------------------------------------------------------------------------
 
 def _parse_radperf_summary(output: str) -> dict:
@@ -200,12 +200,7 @@ def _parse_radperf_summary(output: str) -> dict:
     if sent == 0:
         sent = output.count("Received response ID")
 
-    lost = failed + no_reply
-    accepted = succeeded
-
-    return {"sent": sent, "accepted": accepted, "rejected": failed, "lost": no_reply}
-
-
+    return {"sent": sent, "accepted": succeeded, "rejected": failed, "lost": no_reply}
 
 
 class LoadTestManager:

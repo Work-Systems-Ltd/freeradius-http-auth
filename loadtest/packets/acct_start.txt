@@ -1,6 +1,0 @@
-User-Name = "subscriber1"
-Acct-Status-Type = Start
-Acct-Session-Id = "perf-test-001"
-NAS-IP-Address = 127.0.0.1
-NAS-Port = 0
-Framed-IP-Address = 10.0.0.2
