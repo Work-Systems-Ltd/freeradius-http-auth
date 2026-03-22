@@ -13,18 +13,6 @@ services:
         condition: service_started
       freeradius-2:
         condition: service_started
-      freeradius-3:
-        condition: service_started
-      freeradius-4:
-        condition: service_started
-      freeradius-5:
-        condition: service_started
-      freeradius-6:
-        condition: service_started
-      freeradius-7:
-        condition: service_started
-      freeradius-8:
-        condition: service_started
 
   freeradius-1:
     image: freeradius/freeradius-server:3.2.7
@@ -44,54 +32,6 @@ services:
     command: freeradius -f
 
   freeradius-2:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-3:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-4:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-5:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-6:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-7:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-8:
     image: freeradius/freeradius-server:3.2.7
     volumes: *freeradius-volumes
     networks:
@@ -137,7 +77,7 @@ services:
     environment:
       - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
-      - LOADTEST_TARGETS=freeradius-1,freeradius-2,freeradius-3,freeradius-4,freeradius-5,freeradius-6,freeradius-7,freeradius-8
+      - LOADTEST_TARGETS=radius-lb
     networks:
       - radius-net
     depends_on:
