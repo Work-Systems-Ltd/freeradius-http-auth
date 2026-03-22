@@ -1,50 +1,26 @@
-import logging
-
+import orjson
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 
-logger = logging.getLogger("acct-svc")
-logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+app = FastAPI(title="acct-svc", docs_url=None, redoc_url=None, openapi_url=None)
 
-app = FastAPI(title="acct-svc")
+_RESP_POST_AUTH = orjson.dumps({"Reply-Message": "Post-auth logged"})
+_RESP_ACCOUNTING = orjson.dumps({"Reply-Message": "Accounting logged"})
+_JSON_CT = "application/json"
 
 
-def _extract_attr(body: dict, attr: str) -> str:
-    """Extract attribute value from rlm_rest JSON body."""
-    val = body.get(attr, "")
-    if isinstance(val, dict):
-        values = val.get("value", [])
-        return values[0] if values else ""
-    return str(val)
+@app.get("/health")
+async def health():
+    return Response(b'{"status":"ok"}', media_type=_JSON_CT)
 
 
 @app.post("/post-auth")
-async def post_auth(request: Request) -> JSONResponse:
-    body = await request.json()
-    username = _extract_attr(body, "User-Name")
-    packet_type = _extract_attr(body, "Packet-Type")
-
-    logger.info(
-        "post-auth: user=%s result=%s attributes=%s",
-        username,
-        packet_type,
-        body,
-    )
-    return JSONResponse({"Reply-Message": "Post-auth logged"})
+async def post_auth(request: Request) -> Response:
+    await request.body()  # drain the body without parsing
+    return Response(_RESP_POST_AUTH, media_type=_JSON_CT)
 
 
 @app.post("/accounting")
-async def accounting(request: Request) -> JSONResponse:
-    body = await request.json()
-    username = _extract_attr(body, "User-Name")
-    status_type = _extract_attr(body, "Acct-Status-Type")
-    session_id = _extract_attr(body, "Acct-Session-Id")
-
-    logger.info(
-        "accounting: user=%s status=%s session=%s attributes=%s",
-        username,
-        status_type,
-        session_id,
-        body,
-    )
-    return JSONResponse({"Reply-Message": "Accounting logged"})
+async def accounting(request: Request) -> Response:
+    await request.body()
+    return Response(_RESP_ACCOUNTING, media_type=_JSON_CT)
