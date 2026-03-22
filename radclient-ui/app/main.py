@@ -187,7 +187,7 @@ class LoadTestManager:
 
     def start(self, targets: list[str], target_rps: int, batch_size: int):
         if self.running:
-            return False
+            self.stop()  # force-stop any stuck test
         self.running = True
         self._stop.clear()
         with self._lock:
@@ -206,6 +206,13 @@ class LoadTestManager:
                 p.kill()
             except Exception:
                 pass
+        self._procs.clear()
+        # Give the thread a moment to exit, then force cleanup
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=3)
+        self.running = False
+        with self._lock:
+            self._stats["state"] = "idle"
 
     def status(self):
         with self._lock:
@@ -227,15 +234,14 @@ class LoadTestManager:
 
         # Calculate -p (concurrency) to achieve target RPS
         # RPS ≈ p / response_time. Auth takes ~15ms (2 HTTP calls), acct ~8ms.
-        # Split: 70% auth, 30% acct across all hosts
         num_hosts = len(targets)
         auth_rps_per_host = max(1, int(target_rps * 0.7) // num_hosts)
         acct_rps_per_host = max(1, int(target_rps * 0.3) // num_hosts)
-        # p = rps * estimated_response_time
         auth_par = min(256, max(5, int(auth_rps_per_host * 0.015)))
         acct_par = min(256, max(3, int(acct_rps_per_host * 0.008)))
-        auth_batch = batch_size
-        acct_batch = max(100, int(batch_size * 0.3))
+        # Auto-size batches to complete in ~3 seconds for responsive UI updates
+        auth_batch = min(batch_size, max(50, auth_rps_per_host * 3))
+        acct_batch = min(batch_size, max(50, acct_rps_per_host * 3))
 
         try:
             while not self._stop.is_set():
