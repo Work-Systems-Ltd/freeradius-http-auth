@@ -15,10 +15,6 @@ services:
         condition: service_started
       freeradius-2:
         condition: service_started
-      freeradius-3:
-        condition: service_started
-      freeradius-4:
-        condition: service_started
 
   freeradius-1:
     image: freeradius/freeradius-server:3.2.7
@@ -37,39 +33,13 @@ services:
         condition: service_healthy
       auth-svc-2:
         condition: service_healthy
-      auth-svc-3:
-        condition: service_healthy
-      auth-svc-4:
-        condition: service_healthy
       acct-svc-1:
         condition: service_healthy
       acct-svc-2:
         condition: service_healthy
-      acct-svc-3:
-        condition: service_healthy
-      acct-svc-4:
-        condition: service_healthy
     command: freeradius -f
 
   freeradius-2:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-3:
-    image: freeradius/freeradius-server:3.2.7
-    volumes: *freeradius-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    depends_on: *freeradius-depends
-    command: freeradius -f
-
-  freeradius-4:
     image: freeradius/freeradius-server:3.2.7
     volumes: *freeradius-volumes
     networks:
@@ -100,22 +70,6 @@ services:
     logging: *logging-none
     healthcheck: *auth-svc-healthcheck
 
-  auth-svc-3:
-    build: ./auth-svc
-    volumes: *auth-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *auth-svc-healthcheck
-
-  auth-svc-4:
-    build: ./auth-svc
-    volumes: *auth-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *auth-svc-healthcheck
-
   acct-svc-1:
     build: ./acct-svc
     volumes: &acct-svc-volumes
@@ -130,22 +84,6 @@ services:
       retries: 10
 
   acct-svc-2:
-    build: ./acct-svc
-    volumes: *acct-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *acct-svc-healthcheck
-
-  acct-svc-3:
-    build: ./acct-svc
-    volumes: *acct-svc-volumes
-    networks:
-      - radius-net
-    logging: *logging-none
-    healthcheck: *acct-svc-healthcheck
-
-  acct-svc-4:
     build: ./acct-svc
     volumes: *acct-svc-volumes
     networks:

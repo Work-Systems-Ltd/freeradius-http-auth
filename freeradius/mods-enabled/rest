@@ -4,9 +4,9 @@ rest rest_auth1 {
     timeout = 3
 
     pool {
-        start = 4
-        min = 4
-        max = 32
+        start = 8
+        min = 8
+        max = 64
         spare = 4
         uses = 0
         lifetime = 0
@@ -27,55 +27,9 @@ rest rest_auth2 {
     timeout = 3
 
     pool {
-        start = 4
-        min = 4
-        max = 32
-        spare = 4
-        uses = 0
-        lifetime = 0
-        idle_timeout = 60
-        retry_delay = 1
-    }
-
-    authorize {
-        uri = "${..connect_uri}/authenticate"
-        method = 'post'
-        body = 'json'
-    }
-}
-
-rest rest_auth3 {
-    connect_uri = "http://auth-svc-3:8001"
-    connect_timeout = 3
-    timeout = 3
-
-    pool {
-        start = 4
-        min = 4
-        max = 32
-        spare = 4
-        uses = 0
-        lifetime = 0
-        idle_timeout = 60
-        retry_delay = 1
-    }
-
-    authorize {
-        uri = "${..connect_uri}/authenticate"
-        method = 'post'
-        body = 'json'
-    }
-}
-
-rest rest_auth4 {
-    connect_uri = "http://auth-svc-4:8001"
-    connect_timeout = 3
-    timeout = 3
-
-    pool {
-        start = 4
-        min = 4
-        max = 32
+        start = 8
+        min = 8
+        max = 64
         spare = 4
         uses = 0
         lifetime = 0
@@ -96,9 +50,9 @@ rest rest_acct1 {
     timeout = 3
 
     pool {
-        start = 4
-        min = 4
-        max = 32
+        start = 8
+        min = 8
+        max = 64
         spare = 4
         uses = 0
         lifetime = 0
@@ -125,67 +79,9 @@ rest rest_acct2 {
     timeout = 3
 
     pool {
-        start = 4
-        min = 4
-        max = 32
-        spare = 4
-        uses = 0
-        lifetime = 0
-        idle_timeout = 60
-        retry_delay = 1
-    }
-
-    accounting {
-        uri = "${..connect_uri}/accounting"
-        method = 'post'
-        body = 'json'
-    }
-
-    post-auth {
-        uri = "${..connect_uri}/post-auth"
-        method = 'post'
-        body = 'json'
-    }
-}
-
-rest rest_acct3 {
-    connect_uri = "http://acct-svc-3:8002"
-    connect_timeout = 3
-    timeout = 3
-
-    pool {
-        start = 4
-        min = 4
-        max = 32
-        spare = 4
-        uses = 0
-        lifetime = 0
-        idle_timeout = 60
-        retry_delay = 1
-    }
-
-    accounting {
-        uri = "${..connect_uri}/accounting"
-        method = 'post'
-        body = 'json'
-    }
-
-    post-auth {
-        uri = "${..connect_uri}/post-auth"
-        method = 'post'
-        body = 'json'
-    }
-}
-
-rest rest_acct4 {
-    connect_uri = "http://acct-svc-4:8002"
-    connect_timeout = 3
-    timeout = 3
-
-    pool {
-        start = 4
-        min = 4
-        max = 32
+        start = 8
+        min = 8
+        max = 64
         spare = 4
         uses = 0
         lifetime = 0

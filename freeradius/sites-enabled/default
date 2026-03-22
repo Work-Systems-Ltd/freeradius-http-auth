@@ -25,8 +25,6 @@ server default {
             load-balance {
                 rest_auth1
                 rest_auth2
-                rest_auth3
-                rest_auth4
             }
             if (ok || updated) {
                 update control {
@@ -64,8 +62,6 @@ server default {
             load-balance {
                 rest_acct1
                 rest_acct2
-                rest_acct3
-                rest_acct4
             }
             if (fail) {
                 update control {
@@ -85,8 +81,6 @@ server default {
                 load-balance {
                     rest_acct1
                     rest_acct2
-                    rest_acct3
-                    rest_acct4
                 }
                 if (fail) {
                     update control {
@@ -112,8 +106,6 @@ server default {
             load-balance {
                 rest_acct1
                 rest_acct2
-                rest_acct3
-                rest_acct4
             }
             if (fail) {
                 update control {
