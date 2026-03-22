@@ -1,9 +1,7 @@
-FROM python:3.12-slim
+FROM freeradius/freeradius-server:3.2.7
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY packets/ /etc/radperf/packets/
+COPY run.sh /usr/local/bin/run.sh
+RUN chmod +x /usr/local/bin/run.sh
 
-COPY locustfile.py .
-
-CMD ["locust", "-f", "locustfile.py"]
+ENTRYPOINT ["/usr/local/bin/run.sh"]

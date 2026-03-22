@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import socket
 import subprocess
 import threading
@@ -156,12 +157,42 @@ def _parse_radclient_output(output: str) -> dict:
 # Load test manager — runs radclient in batch mode from a background thread
 # ---------------------------------------------------------------------------
 
-def _parse_radclient_batch(output: str, count: int) -> dict:
+def _parse_radperf_summary(output: str) -> dict:
+    """Parse radperf -s summary output for stats."""
+    sent = 0
+    accepted = 0
+    rejected = 0
+    lost = 0
+    rps = 0
+
+    for line in output.splitlines():
+        line = line.strip()
+        # radperf summary lines like: "Sent: 5000", "Received: 4998", "Lost: 2"
+        if line.startswith("Sent:"):
+            try:
+                sent = int(line.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+        elif line.startswith("Lost:"):
+            try:
+                lost = int(line.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+
+    # Count from verbose output as fallback
+    if sent == 0:
+        sent = output.count("Sent ")
     accepted = output.count("Received Access-Accept")
     accepted += output.count("Received Accounting-Response")
     rejected = output.count("Received Access-Reject")
-    lost = max(0, count - accepted - rejected)
-    return {"sent": count, "accepted": accepted, "rejected": rejected, "lost": lost}
+    if sent > 0 and lost == 0:
+        lost = max(0, sent - accepted - rejected)
+
+    return {"sent": sent, "accepted": accepted, "rejected": rejected, "lost": lost}
+
+
+# Check if radperf is available, fall back to radclient
+_USE_RADPERF = shutil.which("radperf") is not None
 
 
 class LoadTestManager:
@@ -183,18 +214,19 @@ class LoadTestManager:
             "lost": 0,
             "rps": 0,
             "batch_rps": 0,
+            "tool": "radperf" if _USE_RADPERF else "radclient",
         }
 
-    def start(self, targets: list[str], target_rps: int, batch_size: int):
+    def start(self, targets: list[str], target_rps: int, duration: int):
         if self.running:
-            self.stop()  # force-stop any stuck test
+            self.stop()
         self.running = True
         self._stop.clear()
         with self._lock:
             self._stats = self._empty()
             self._stats["state"] = "running"
         self._thread = threading.Thread(
-            target=self._run, args=(targets, target_rps, batch_size), daemon=True
+            target=self._run, args=(targets, target_rps, duration), daemon=True
         )
         self._thread.start()
         return True
@@ -207,7 +239,6 @@ class LoadTestManager:
             except Exception:
                 pass
         self._procs.clear()
-        # Give the thread a moment to exit, then force cleanup
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3)
         self.running = False
@@ -218,7 +249,7 @@ class LoadTestManager:
         with self._lock:
             return dict(self._stats)
 
-    def _run(self, targets: list[str], target_rps: int, batch_size: int):
+    def _run(self, targets: list[str], target_rps: int, duration: int):
         t0 = time.monotonic()
 
         # Write request files
@@ -232,60 +263,67 @@ class LoadTestManager:
                     'Acct-Session-Id = "loadtest"\nNAS-IP-Address = 127.0.0.1\n'
                     'NAS-Port = 0\n')
 
-        # Calculate -p (concurrency) to achieve target RPS
-        # RPS ≈ p / response_time. Auth takes ~15ms (2 HTTP calls), acct ~8ms.
         num_hosts = len(targets)
         auth_rps_per_host = max(1, int(target_rps * 0.7) // num_hosts)
         acct_rps_per_host = max(1, int(target_rps * 0.3) // num_hosts)
-        # Actual response time through Docker+rlm_rest is ~50-100ms for auth, ~20ms for acct
-        auth_par = min(256, max(10, int(auth_rps_per_host * 0.1)))
-        acct_par = min(256, max(5, int(acct_rps_per_host * 0.05)))
-        # Auto-size batches to complete in ~3 seconds for responsive UI updates
-        auth_batch = min(batch_size, max(50, auth_rps_per_host * 3))
-        acct_batch = min(batch_size, max(50, acct_rps_per_host * 3))
+        auth_count = auth_rps_per_host * duration
+        acct_count = acct_rps_per_host * duration
+        auth_par = min(500, max(10, auth_rps_per_host // 5))
+        acct_par = min(500, max(5, acct_rps_per_host // 5))
+
+        logger.info("Load test: tool=%s targets=%s rps=%d duration=%ds",
+                     "radperf" if _USE_RADPERF else "radclient",
+                     targets, target_rps, duration)
+        logger.info("Per host: auth=%d/s (par=%d, total=%d) acct=%d/s (par=%d, total=%d)",
+                     auth_rps_per_host, auth_par, auth_count,
+                     acct_rps_per_host, acct_par, acct_count)
 
         try:
-            while not self._stop.is_set():
-                batch_t0 = time.monotonic()
-                results = []
+            results = []
+            threads = []
 
-                # Spawn one auth + one acct process PER host simultaneously
-                threads = []
-                for host in targets:
-                    host = host.strip()
-                    threads.append(threading.Thread(
-                        target=lambda h, f, p, pt, c, par: results.append(
-                            self._batch(f, h, p, pt, c, par)),
-                        args=(host, auth_file, 1812, "auth", auth_batch, auth_par),
-                    ))
-                    threads.append(threading.Thread(
-                        target=lambda h, f, p, pt, c, par: results.append(
-                            self._batch(f, h, p, pt, c, par)),
-                        args=(host, acct_file, 1813, "acct", acct_batch, acct_par),
-                    ))
+            for host in targets:
+                host = host.strip()
+                # Auth process
+                threads.append(threading.Thread(
+                    target=lambda h, f, p, pt, c, par, n: results.append(
+                        self._run_perf(f, h, p, pt, c, par, n)),
+                    args=(host, auth_file, 1812, "auth", auth_count, auth_par,
+                          auth_rps_per_host),
+                ))
+                # Acct process
+                threads.append(threading.Thread(
+                    target=lambda h, f, p, pt, c, par, n: results.append(
+                        self._run_perf(f, h, p, pt, c, par, n)),
+                    args=(host, acct_file, 1813, "acct", acct_count, acct_par,
+                          acct_rps_per_host),
+                ))
 
-                for t in threads:
-                    t.start()
-                for t in threads:
-                    t.join()
+            for t in threads:
+                t.start()
 
+            # Poll for status updates while processes run
+            while any(t.is_alive() for t in threads):
                 if self._stop.is_set():
                     break
-
-                batch_elapsed = time.monotonic() - batch_t0
-                batch_sent = 0
-
+                time.sleep(1)
+                elapsed = time.monotonic() - t0
                 with self._lock:
-                    for r in results:
-                        self._stats["sent"] += r["sent"]
-                        self._stats["accepted"] += r["accepted"]
-                        self._stats["rejected"] += r["rejected"]
-                        self._stats["lost"] += r["lost"]
-                        batch_sent += r["sent"]
-                    elapsed = time.monotonic() - t0
                     self._stats["elapsed"] = round(elapsed, 1)
-                    self._stats["rps"] = round(self._stats["sent"] / elapsed) if elapsed > 0 else 0
-                    self._stats["batch_rps"] = round(batch_sent / batch_elapsed) if batch_elapsed > 0 else 0
+
+            for t in threads:
+                t.join(timeout=5)
+
+            with self._lock:
+                for r in results:
+                    self._stats["sent"] += r["sent"]
+                    self._stats["accepted"] += r["accepted"]
+                    self._stats["rejected"] += r["rejected"]
+                    self._stats["lost"] += r["lost"]
+                elapsed = time.monotonic() - t0
+                self._stats["elapsed"] = round(elapsed, 1)
+                self._stats["rps"] = round(self._stats["sent"] / elapsed) if elapsed > 0 else 0
+                self._stats["batch_rps"] = self._stats["rps"]
         finally:
             with self._lock:
                 self._stats["state"] = "idle"
@@ -294,27 +332,48 @@ class LoadTestManager:
                     self._stats["rps"] = round(self._stats["sent"] / self._stats["elapsed"])
             self.running = False
 
-    def _batch(self, request_file, host, port, ptype, count, parallel):
+    def _run_perf(self, request_file, host, port, ptype, count, parallel, rate):
         try:
             host_ip = socket.gethostbyname(host)
+            target = f"{host_ip}:{port}"
+
+            if _USE_RADPERF:
+                cmd = [
+                    "radperf",
+                    "-n", str(rate),       # target packets/sec
+                    "-p", str(parallel),   # max parallel
+                    "-c", str(count),      # total packets
+                    "-r", "1",             # 1 retry
+                    "-t", "2",             # 2s timeout
+                    "-f", request_file,
+                    "-s",                  # print summary
+                    target, ptype, RADIUS_SECRET,
+                ]
+            else:
+                cmd = [
+                    "radclient",
+                    "-c", str(count),
+                    "-p", str(parallel),
+                    "-r", "1", "-t", "2",
+                    "-f", request_file,
+                    target, ptype, RADIUS_SECRET,
+                ]
+
+            logger.info("Running: %s", " ".join(cmd))
             proc = subprocess.Popen(
-                ["radclient", "-c", str(count), "-p", str(parallel),
-                 "-r", "3", "-t", "3",
-                 "-f", request_file,
-                 f"{host_ip}:{port}", ptype, RADIUS_SECRET],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
             self._procs.append(proc)
             try:
-                stdout, stderr = proc.communicate(timeout=120)
+                stdout, stderr = proc.communicate(timeout=300)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 stdout, stderr = proc.communicate()
             if proc in self._procs:
                 self._procs.remove(proc)
-            return _parse_radclient_batch(stdout + stderr, count)
+            return _parse_radperf_summary(stdout + stderr)
         except Exception as e:
-            logger.error("radclient batch error: %s", e)
+            logger.error("radperf error: %s", e)
             return {"sent": 0, "accepted": 0, "rejected": 0, "lost": 0}
 
 
@@ -326,8 +385,8 @@ async def loadtest_start(request: Request) -> JSONResponse:
     body = await request.json()
     targets = [t.strip() for t in body.get("targets", LOADTEST_TARGETS).split(",") if t.strip()]
     target_rps = min(50000, max(10, int(body.get("target_rps", 5000))))
-    batch_size = min(50000, max(100, int(body.get("batch_size", 5000))))
-    ok = _loadtest.start(targets=targets, target_rps=target_rps, batch_size=batch_size)
+    duration = min(300, max(5, int(body.get("duration", 30))))
+    ok = _loadtest.start(targets=targets, target_rps=target_rps, duration=duration)
     return JSONResponse({"started": ok})
 
 

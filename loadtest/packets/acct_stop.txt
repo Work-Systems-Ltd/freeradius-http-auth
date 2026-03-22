@@ -1,0 +1,9 @@
+User-Name = "subscriber1"
+Acct-Status-Type = Stop
+Acct-Session-Id = "perf-test-001"
+NAS-IP-Address = 127.0.0.1
+NAS-Port = 0
+Framed-IP-Address = 10.0.0.2
+Acct-Session-Time = 3600
+Acct-Input-Octets = 104857600
+Acct-Output-Octets = 524288000
