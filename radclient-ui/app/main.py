@@ -221,11 +221,10 @@ class LoadTestManager:
             "rejected": 0,
             "lost": 0,
             "rps": 0,
-            "batch_rps": 0,
             "tool": "radperf",
         }
 
-    def start(self, targets: list[str], target_rps: int, duration: int):
+    def start(self, targets: list[str], concurrency: int, duration: int):
         self.stop()
         self._kill_all_radperf()
         self.running = True
@@ -234,7 +233,7 @@ class LoadTestManager:
             self._stats = self._empty()
             self._stats["state"] = "running"
         self._thread = threading.Thread(
-            target=self._run, args=(targets, target_rps, duration), daemon=True
+            target=self._run, args=(targets, concurrency, duration), daemon=True
         )
         self._thread.start()
         return True
