@@ -13,6 +13,10 @@ services:
         condition: service_started
       freeradius-2:
         condition: service_started
+      freeradius-3:
+        condition: service_started
+      freeradius-4:
+        condition: service_started
 
   freeradius-1:
     image: freeradius/freeradius-server:3.2.7
@@ -39,6 +43,22 @@ services:
     depends_on: *freeradius-depends
     command: freeradius -f
 
+  freeradius-3:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
+  freeradius-4:
+    image: freeradius/freeradius-server:3.2.7
+    volumes: *freeradius-volumes
+    networks:
+      - radius-net
+    depends_on: *freeradius-depends
+    command: freeradius -f
+
   auth-svc:
     build: ./auth-svc
     volumes:
@@ -47,7 +67,7 @@ services:
     networks:
       - radius-net
     deploy:
-      replicas: 2
+      replicas: 4
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 3s
@@ -61,7 +81,7 @@ services:
     networks:
       - radius-net
     deploy:
-      replicas: 2
+      replicas: 4
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
       interval: 3s
@@ -77,7 +97,7 @@ services:
     environment:
       - RADIUS_HOST=radius-lb
       - RADIUS_SECRET=${RADIUS_SECRET:-testing123}
-      - LOADTEST_TARGETS=freeradius-1,freeradius-2
+      - LOADTEST_TARGETS=freeradius-1,freeradius-2,freeradius-3,freeradius-4
     networks:
       - radius-net
     depends_on:

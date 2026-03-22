@@ -1,13 +1,13 @@
 rest {
     connect_uri = "http://auth-svc:8001"
-    connect_timeout = 3
-    timeout = 3
+    connect_timeout = 1
+    timeout = 2
 
     pool {
-        start = 50
-        min = 50
-        max = 500     # tune based on load
-        spare = 20
+        start = 100
+        min = 100
+        max = 500
+        spare = 50
         uses = 0
         lifetime = 0
         cleanup_interval = 30
@@ -23,14 +23,14 @@ rest {
 
 rest rest_acct {
     connect_uri = "http://acct-svc:8002"
-    connect_timeout = 3
-    timeout = 3
+    connect_timeout = 1
+    timeout = 2
 
     pool {
-        start = 32
-        min = 16
-        max = 128
-        spare = 16
+        start = 100
+        min = 100
+        max = 500
+        spare = 50
         uses = 0
         lifetime = 0
         idle_timeout = 60
