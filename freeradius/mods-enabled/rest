@@ -4,10 +4,10 @@ rest {
     timeout = 2
 
     pool {
-        start = 100
-        min = 100
+        start = 50
+        min = 50
         max = 500
-        spare = 50
+        spare = 20
         uses = 0
         lifetime = 0
         cleanup_interval = 30
@@ -27,10 +27,10 @@ rest rest_acct {
     timeout = 2
 
     pool {
-        start = 100
-        min = 100
+        start = 32
+        min = 32
         max = 500
-        spare = 50
+        spare = 16
         uses = 0
         lifetime = 0
         idle_timeout = 60
