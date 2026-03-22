@@ -3,12 +3,14 @@ server default {
         type = auth
         ipaddr = *
         port = 0
+        recv_buff = 4194304
     }
 
     listen {
         type = acct
         ipaddr = *
         port = 0
+        recv_buff = 4194304
     }
 
     authorize {
