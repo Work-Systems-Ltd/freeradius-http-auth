@@ -29,6 +29,10 @@ services:
         condition: service_healthy
       acct-svc:
         condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     command: freeradius -f
 
   freeradius-2:
@@ -37,6 +41,10 @@ services:
     networks:
       - radius-net
     depends_on: *freeradius-depends
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     command: freeradius -f
 
   auth-svc:
