@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import shutil
 import socket
 import subprocess
 import threading
@@ -158,41 +157,55 @@ def _parse_radclient_output(output: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _parse_radperf_summary(output: str) -> dict:
-    """Parse radperf -s summary output for stats."""
+    """Parse radperf -s summary output.
+
+    Example radperf summary:
+        Total sent        :  5
+        Total retransmits :  0
+        Total succeeded   :  5
+        Total failed      :  0
+        Total no reply    :  0
+        Total time (s)    :  0.024
+        Packets/s         :  201
+    """
     sent = 0
-    accepted = 0
-    rejected = 0
-    lost = 0
-    rps = 0
+    succeeded = 0
+    failed = 0
+    no_reply = 0
 
     for line in output.splitlines():
         line = line.strip()
-        # radperf summary lines like: "Sent: 5000", "Received: 4998", "Lost: 2"
-        if line.startswith("Sent:"):
+        if line.startswith("Total sent"):
             try:
                 sent = int(line.split(":", 1)[1].strip())
             except ValueError:
                 pass
-        elif line.startswith("Lost:"):
+        elif line.startswith("Total succeeded"):
             try:
-                lost = int(line.split(":", 1)[1].strip())
+                succeeded = int(line.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+        elif line.startswith("Total failed"):
+            try:
+                failed = int(line.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+        elif line.startswith("Total no reply"):
+            try:
+                no_reply = int(line.split(":", 1)[1].strip())
             except ValueError:
                 pass
 
-    # Count from verbose output as fallback
+    # Fallback: count "Received response" lines if summary not found
     if sent == 0:
-        sent = output.count("Sent ")
-    accepted = output.count("Received Access-Accept")
-    accepted += output.count("Received Accounting-Response")
-    rejected = output.count("Received Access-Reject")
-    if sent > 0 and lost == 0:
-        lost = max(0, sent - accepted - rejected)
+        sent = output.count("Received response ID")
 
-    return {"sent": sent, "accepted": accepted, "rejected": rejected, "lost": lost}
+    lost = failed + no_reply
+    accepted = succeeded
+
+    return {"sent": sent, "accepted": accepted, "rejected": failed, "lost": no_reply}
 
 
-# Check if radperf is available, fall back to radclient
-_USE_RADPERF = shutil.which("radperf") is not None
 
 
 class LoadTestManager:
@@ -214,7 +227,7 @@ class LoadTestManager:
             "lost": 0,
             "rps": 0,
             "batch_rps": 0,
-            "tool": "radperf" if _USE_RADPERF else "radclient",
+            "tool": "radperf",
         }
 
     def start(self, targets: list[str], target_rps: int, duration: int):
@@ -264,52 +277,52 @@ class LoadTestManager:
                     'NAS-Port = 0\n')
 
         num_hosts = len(targets)
+        # Use -p (parallelism) not -n (rate) — radperf -n is serial and too slow.
+        # Parallelism = target_rps * expected_latency. Assume ~5ms avg → rps/200.
+        # Generous minimum to handle variance.
         auth_rps_per_host = max(1, int(target_rps * 0.7) // num_hosts)
         acct_rps_per_host = max(1, int(target_rps * 0.3) // num_hosts)
+        auth_par = min(500, max(20, auth_rps_per_host // 10))
+        acct_par = min(500, max(10, acct_rps_per_host // 10))
         auth_count = auth_rps_per_host * duration
         acct_count = acct_rps_per_host * duration
-        auth_par = min(500, max(10, auth_rps_per_host // 5))
-        acct_par = min(500, max(5, acct_rps_per_host // 5))
 
-        logger.info("Load test: tool=%s targets=%s rps=%d duration=%ds",
-                     "radperf" if _USE_RADPERF else "radclient",
+        logger.info("Load test: targets=%s rps=%d duration=%ds",
                      targets, target_rps, duration)
-        logger.info("Per host: auth=%d/s (par=%d, total=%d) acct=%d/s (par=%d, total=%d)",
+        logger.info("Per host: auth=%d/s (par=%d, count=%d) acct=%d/s (par=%d, count=%d)",
                      auth_rps_per_host, auth_par, auth_count,
                      acct_rps_per_host, acct_par, acct_count)
 
         try:
+            # Launch one radperf per host per type for the full duration
             results = []
             threads = []
 
+            def _worker(req_file, host, port, ptype, count, par):
+                r = self._run_perf(req_file, host, port, ptype, count, par)
+                results.append(r)
+
             for host in targets:
                 host = host.strip()
-                # Auth process
                 threads.append(threading.Thread(
-                    target=lambda h, f, p, pt, c, par, n: results.append(
-                        self._run_perf(f, h, p, pt, c, par, n)),
-                    args=(host, auth_file, 1812, "auth", auth_count, auth_par,
-                          auth_rps_per_host),
+                    target=_worker,
+                    args=(auth_file, host, 1812, "auth", auth_count, auth_par),
                 ))
-                # Acct process
                 threads.append(threading.Thread(
-                    target=lambda h, f, p, pt, c, par, n: results.append(
-                        self._run_perf(f, h, p, pt, c, par, n)),
-                    args=(host, acct_file, 1813, "acct", acct_count, acct_par,
-                          acct_rps_per_host),
+                    target=_worker,
+                    args=(acct_file, host, 1813, "acct", acct_count, acct_par),
                 ))
 
             for t in threads:
                 t.start()
 
-            # Poll for status updates while processes run
+            # Poll elapsed while running
             while any(t.is_alive() for t in threads):
                 if self._stop.is_set():
                     break
                 time.sleep(1)
-                elapsed = time.monotonic() - t0
                 with self._lock:
-                    self._stats["elapsed"] = round(elapsed, 1)
+                    self._stats["elapsed"] = round(time.monotonic() - t0, 1)
 
             for t in threads:
                 t.join(timeout=5)
@@ -320,9 +333,9 @@ class LoadTestManager:
                     self._stats["accepted"] += r["accepted"]
                     self._stats["rejected"] += r["rejected"]
                     self._stats["lost"] += r["lost"]
-                elapsed = time.monotonic() - t0
-                self._stats["elapsed"] = round(elapsed, 1)
-                self._stats["rps"] = round(self._stats["sent"] / elapsed) if elapsed > 0 else 0
+                total_elapsed = time.monotonic() - t0
+                self._stats["elapsed"] = round(total_elapsed, 1)
+                self._stats["rps"] = round(self._stats["sent"] / total_elapsed) if total_elapsed > 0 else 0
                 self._stats["batch_rps"] = self._stats["rps"]
         finally:
             with self._lock:
@@ -332,32 +345,21 @@ class LoadTestManager:
                     self._stats["rps"] = round(self._stats["sent"] / self._stats["elapsed"])
             self.running = False
 
-    def _run_perf(self, request_file, host, port, ptype, count, parallel, rate):
+    def _run_perf(self, request_file, host, port, ptype, count, parallel):
         try:
             host_ip = socket.gethostbyname(host)
             target = f"{host_ip}:{port}"
 
-            if _USE_RADPERF:
-                cmd = [
-                    "radperf",
-                    "-n", str(rate),       # target packets/sec
-                    "-p", str(parallel),   # max parallel
-                    "-c", str(count),      # total packets
-                    "-r", "1",             # 1 retry
-                    "-t", "2",             # 2s timeout
-                    "-f", request_file,
-                    "-s",                  # print summary
-                    target, ptype, RADIUS_SECRET,
-                ]
-            else:
-                cmd = [
-                    "radclient",
-                    "-c", str(count),
-                    "-p", str(parallel),
-                    "-r", "1", "-t", "2",
-                    "-f", request_file,
-                    target, ptype, RADIUS_SECRET,
-                ]
+            cmd = [
+                "radperf",
+                "-p", str(parallel),   # max parallel outstanding
+                "-c", str(count),      # total packets
+                "-r", "1",             # 1 retry
+                "-t", "2",             # 2s timeout
+                "-f", request_file,
+                "-s",                  # print summary
+                target, ptype, RADIUS_SECRET,
+            ]
 
             logger.info("Running: %s", " ".join(cmd))
             proc = subprocess.Popen(
@@ -371,7 +373,13 @@ class LoadTestManager:
                 stdout, stderr = proc.communicate()
             if proc in self._procs:
                 self._procs.remove(proc)
-            return _parse_radperf_summary(stdout + stderr)
+            output = stdout + stderr
+            parsed = _parse_radperf_summary(output)
+            logger.info("radperf %s:%d %s exit=%d parsed=%s", host, port, ptype,
+                        proc.returncode, parsed)
+            if parsed["sent"] == 0:
+                logger.warning("radperf output (first 500 chars): %s", output[:500])
+            return parsed
         except Exception as e:
             logger.error("radperf error: %s", e)
             return {"sent": 0, "accepted": 0, "rejected": 0, "lost": 0}
@@ -387,7 +395,8 @@ async def loadtest_start(request: Request) -> JSONResponse:
     target_rps = min(50000, max(10, int(body.get("target_rps", 5000))))
     duration = min(300, max(5, int(body.get("duration", 30))))
     ok = _loadtest.start(targets=targets, target_rps=target_rps, duration=duration)
-    return JSONResponse({"started": ok})
+    return JSONResponse({"started": ok, "target_rps": target_rps, "duration": duration,
+                         "tool": "radperf"})
 
 
 @app.post("/api/loadtest/stop")

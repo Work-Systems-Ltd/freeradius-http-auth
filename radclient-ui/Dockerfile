@@ -1,13 +1,10 @@
 FROM python:3.12-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends freeradius-utils curl gnupg && \
-    curl -fsSL https://packages.networkradius.com/pgp/packages%40networkradius.com \
-      | gpg --dearmor > /etc/apt/trusted.gpg.d/networkradius.gpg && \
-    echo "deb https://packages.networkradius.com/extras/debian/bookworm bookworm main" \
-      > /etc/apt/sources.list.d/networkradius-extras.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends radperf || true && \
+    apt-get install -y --no-install-recommends freeradius-utils wget && \
+    wget -q https://networkradius.com/assets/packages/radperf/radperf_2.0.1_amd64.deb && \
+    dpkg -i radperf_2.0.1_amd64.deb || apt-get install -y -f --no-install-recommends && \
+    rm -f radperf_2.0.1_amd64.deb && \
     rm -rf /var/lib/apt/lists/* && \
     echo 'hosts: files dns' > /etc/nsswitch.conf
 
